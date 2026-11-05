@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>System-Magie – Leuchtlinien V41</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#202127;font-family:Arial,sans-serif}
+#view{width:100%;height:100%;display:block;touch-action:none}
+.panel{position:absolute;top:12px;left:12px;right:12px;max-width:570px;padding:13px 15px;background:#f5f2e9;color:#302d28;border-radius:13px;box-shadow:0 4px 20px #0004}
+h1{font-size:17px;margin:0 0 5px}p{font-size:13px;line-height:1.35;margin:0 0 9px}
+.row{display:flex;align-items:center;gap:10px;margin-top:8px}label{min-width:68px;font-size:14px}input{flex:1;min-width:0;accent-color:#8b5e3c}output{min-width:42px;text-align:right;font-size:13px}button{border:0;border-radius:8px;padding:7px 10px;background:#795638;color:white}
+.hint{font-size:11px;color:#6a655d;margin-top:7px}
+</style></head><body>
+<canvas id="view"></canvas>
+<div class="panel"><h1>System-Magie · Leuchtlinien V41</h1>
+<p>Acht unregelmäßige Lichtlinien mit warmem, weichem Lichtschein. Der innere Lichtschleier liegt auf zwei gekreuzten, mitdrehenden Ebenen. Keine zusätzlichen Innenlinien, kein fester Körper.</p>
+<div class="row"><label for="rot">Drehung</label><input id="rot" type="range" min="-180" max="180" value="0"><output id="deg">0°</output><button id="reset">Zurück</button></div>
+<div class="hint">Du kannst auch direkt auf der Fläche ziehen, um die Figur zu drehen.</div></div>
+<script>
+(()=> {
+const canvas=document.getElementById('view'),ctx=canvas.getContext('2d');
+const slider=document.getElementById('rot'),deg=document.getElementById('deg');
+let W=0,H=0,D=1,yaw=0,pitch=-.08,drag=false,lastX=0,lastY=0;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// Height profile: bottom -> top. Cross-sections are circular, so width/depth stay equal.
+// A rounded torso, soft waist, narrow neck, and distinct oval head.
+const profile=[
+[0.00,.075],[.025,.12],[.07,.155],[.13,.18],[.20,.195],
+[.27,.19],[.34,.16],[.39,.135],[.43,.14],[.48,.18],
+[.54,.245],[.60,.29],[.66,.30],[.71,.285],[.755,.25],
+[.795,.205],[.825,.155],[.85,.105],[.875,.085],
+// Kopf: schmaler und hochkant oval statt flacher, breiter Kappe
+[.89,.09],[.905,.108],[.92,.13],[.94,.145],[.96,.148],
+[.972,.144],[.982,.13],[.989,.11],[.994,.083],[.997,.058],[.999,.03],[1,0]
+];
+function radius(t){
+ // Der Kopf wird als echte, aufrecht stehende Ovalform berechnet:
+ // unten sanft aus dem Hals verbreitert, oben als durchgehend runde Ellipsenkappe.
+ if(t>=.875){
+  const h=clamp((t-.875)/.125,0,1);
+  const join=.58, base=.085, widest=.15;
+  if(h<=join){const u=h/join;const smooth=u*u*(3-2*u);return base+(widest-base)*smooth;}
+  const q=clamp((h-join)/(1-join),0,1);
+  return Math.max(.004,widest*Math.sqrt(Math.max(0,1-q*q)));
+ }
+ let i=0;while(i<profile.length-2&&profile[i+1][0]<t)i++;
+ const [ta,ra]=profile[i],[tb,rb]=profile[i+1],u=(t-ta)/(tb-ta);
+ const prev=profile[Math.max(0,i-1)],next=profile[Math.min(profile.length-1,i+2)];
+ const m0=(rb-prev[1])/(tb-prev[0]),m1=(next[1]-ra)/(next[0]-ta);
+ const u2=u*u,u3=u2*u,dt=tb-ta;
+ return Math.max(.004,(2*u3-3*u2+1)*ra+(u3-2*u2+u)*dt*m0+(-2*u3+3*u2)*rb+(u3-u2)*dt*m1);
+}
+function resize(){D=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*D;canvas.height=H*D;canvas.style.width=W+'px';canvas.style.height=H+'px';draw()}
+function rotate(x,y,z){
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ const x1=x*cy+z*sy,z1=-x*sy+z*cy;
+ return {x:x1,y:y*cp-z1*sp,z:y*sp+z1*cp};
+}
+function project(v){
+ const q=rotate(v.x,v.y,v.z),f=Math.min(W,H)*1.10,cam=4.3;
+ const k=f/(cam-q.z);
+ return {x:W*.5+q.x*k,y:H*.59-(q.y-.9)*k,z:q.z};
+}
+function draw(){
+ if(!W||!H)return;
+ ctx.setTransform(D,0,0,D,0,0);ctx.clearRect(0,0,W,H);
+ ctx.fillStyle='#202127';ctx.fillRect(0,0,W,H);
+ // Perspective board reference, drawn as a real plane in the same camera space.
+ const board=[[-1.25,0,-.95],[1.25,0,-.95],[1.25,0,1.15],[-1.25,0,1.15]].map(([x,y,z])=>project({x,y,z}));
+ ctx.beginPath();ctx.moveTo(board[0].x,board[0].y);for(let i=1;i<4;i++)ctx.lineTo(board[i].x,board[i].y);ctx.closePath();
+ ctx.fillStyle='#9aa7a2';ctx.fill();ctx.strokeStyle='#72553e';ctx.lineWidth=3;ctx.stroke();
+ ctx.save();ctx.beginPath();ctx.moveTo(board[0].x,board[0].y);for(let i=1;i<4;i++)ctx.lineTo(board[i].x,board[i].y);ctx.closePath();ctx.clip();
+ ctx.strokeStyle='rgba(255,255,255,.13)';ctx.lineWidth=1;
+ for(let z=-.7;z<1;z+=.35){let a=project({x:-1.25,y:0,z}),b=project({x:1.25,y:0,z});ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+ for(let x=-1.1;x<1.2;x+=.35){let a=project({x,y:0,z:-.95}),b=project({x,y:0,z:1.15});ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+ ctx.restore();
+ // Leuchtender Schleier im Inneren: eine weiche, zusammenhängende Lichtfläche.
+ // Die Fläche wird aus vielen überlappenden, unsichtbar weich auslaufenden
+ // Querschnitten aufgebaut. Sie verändert weder die Figur noch ihre Linien.
+ function veilBlob(x,y,rx,ry,alpha){
+  if(rx<1||ry<1)return;
+  ctx.save();ctx.translate(x,y);ctx.scale(rx,ry);
+  const g=ctx.createRadialGradient(0,0,0,0,0,1);
+  g.addColorStop(0,`rgba(255,244,229,${alpha})`);
+  g.addColorStop(.38,`rgba(255,237,218,${alpha*.78})`);
+  g.addColorStop(.72,`rgba(255,229,211,${alpha*.34})`);
+  g.addColorStop(1,'rgba(255,224,207,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ const top=project({x:0,y:1.91,z:0});
+ const bottom=project({x:0,y:.08,z:0});
+ const figureH=Math.abs(bottom.y-top.y);
+ // Viele feine Abschnitte sorgen für einen fließenden Verlauf ohne sichtbare Stufen.
+ const veilSteps=112;
+ for(let i=0;i<=veilSteps;i++){
+  const t=.012+.976*i/veilSteps;
+  const y=t<=.875?.06+t*1.72:.06+.875*1.72+((t-.875)/.125)*.40+.055*Math.pow((t-.875)/.125,5);
+  const r=radius(t)*.82;
+  const fade=Math.max(0,Math.min(1,t/.075,(1-t)/.075));
+  // Zwei echte, senkrecht zueinander stehende Lichtschleier-Ebenen.
+  // Die erste liegt in der X-Y-Ebene, die zweite in der Z-Y-Ebene.
+  // Beide werden gemeinsam mit der Figur gedreht: von vorn ist die erste
+  // sichtbar, von der Seite die zweite. So bleibt der Schleier nicht flach.
+  const center=project({x:0,y,z:0});
+  for(const axis of ['x','z']){
+   const edge=axis==='x'?project({x:r,y,z:0}):project({x:0,y,z:r});
+   const halfWidth=Math.max(0,Math.abs(edge.x-center.x));
+   if(halfWidth<.35)continue;
+   // Je Ebene nur ein sanfter Anteil, damit sich die Helligkeit beim Drehen
+   // nicht zu einem grellen Kern addiert.
+   veilBlob(center.x,center.y,halfWidth*.94,figureH*.021,.12*fade);
+   veilBlob(center.x,center.y,halfWidth*1.9,figureH*.046,.028*fade);
+  }
+ }
+
+ // Schritt 2: Unregelmäßige Linien mit Windungen in BEIDE Richtungen.
+ // Jede Linie hat einen eigenen Verlauf: einige drehen links-, andere rechtsherum. Eine vorhandene Linie wurde auf die bisherige Lücke auf der linken Seite verlegt; die Anzahl bleibt gleich.
+ // Unterschiedliche Windungsstärken und leicht versetzte Startwinkel vermeiden ein regelmäßiges Gitter.
+ const lineCount=8;
+ const starts=[-2.72,-1.93,-0.73,0.08,0.92,2.02,2.73,4.47];
+ const turns =[ 1.05,-0.82, 0.63,-1.18,0.92,-0.70,0.48,-0.38];
+ const waves =[ 0.18,-0.12, 0.23, 0.14,-0.20,0.19,-0.11, 0.10];
+ for(let n=0;n<lineCount;n++){
+  const theta=starts[n];
+  let path=[];
+  for(let k=0;k<=480;k++){
+   const t=.001+.998*k/480;
+   const r=radius(t)*1.018;
+   // Mischung aus Grundwindung und sanfter, individueller Schwingung.
+   const twist=2*Math.PI*turns[n]*t + waves[n]*Math.sin(2*Math.PI*(1.15*t+.08*n));
+   const angle=theta+twist;
+   const yy=t<=.875?.06+t*1.72:.06+.875*1.72+((t-.875)/.125)*.40+.055*Math.pow((t-.875)/.125,5);
+   const pt=project({x:r*Math.cos(angle),y:yy,z:r*Math.sin(angle)});
+   path.push(pt);
+  }
+  if(path.length>1)paintLine(path);
+ }
+ function paintLine(points){
+  // Warmes, weit ausstrahlendes Licht: die Aura bleibt weich und deutlich
+  // breiter als die Linie. Kein additives Aufbrennen und kein grellweißer Kern.
+  ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);
+  for(let i=1;i<points.length;i++)ctx.lineTo(points[i].x,points[i].y);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.save();
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=.10;ctx.strokeStyle='rgba(255,205,151,.72)';ctx.lineWidth=22;
+  ctx.shadowColor='rgba(255,205,151,.75)';ctx.shadowBlur=42;ctx.stroke();
+  ctx.globalAlpha=.16;ctx.strokeStyle='rgba(255,220,178,.82)';ctx.lineWidth=11;
+  ctx.shadowColor='rgba(255,220,178,.8)';ctx.shadowBlur=25;ctx.stroke();
+  ctx.globalAlpha=.78;ctx.strokeStyle='rgba(255,231,203,.94)';ctx.lineWidth=3.4;
+  ctx.shadowColor='rgba(255,222,181,.85)';ctx.shadowBlur=16;ctx.stroke();
+  ctx.globalAlpha=.62;ctx.strokeStyle='rgba(255,246,229,.88)';ctx.lineWidth=1.15;
+  ctx.shadowColor='rgba(255,232,207,.8)';ctx.shadowBlur=8;ctx.stroke();
+  ctx.restore();
+ }
+
+}
+slider.addEventListener('input',()=>{yaw=Number(slider.value)*Math.PI/180;deg.textContent=slider.value+'°';draw()});
+document.getElementById('reset').addEventListener('click',()=>{yaw=0;pitch=-.08;slider.value=0;deg.textContent='0°';draw()});
+canvas.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-lastX)*.012;pitch=clamp(pitch+(e.clientY-lastY)*.008,-.65,.45);lastX=e.clientX;lastY=e.clientY;slider.value=Math.round(yaw*180/Math.PI);deg.textContent=slider.value+'°';draw()});
+canvas.addEventListener('pointerup',()=>drag=false);canvas.addEventListener('pointercancel',()=>drag=false);
+addEventListener('resize',resize);resize();
+})();
+</script></body></html>

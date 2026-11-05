@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Digitale 3D-Ziegelmauer</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#dedbd6;font-family:Arial,sans-serif}#scene{width:100%;height:100%;display:block;touch-action:none}#panel{position:fixed;left:12px;top:12px;max-width:calc(100vw - 48px);background:#ffffffdf;padding:10px 12px;border-radius:10px;color:#333;font-size:14px;box-shadow:0 2px 10px #0002}#panel strong{display:block;margin-bottom:4px}#hint{font-size:12px;color:#555;margin-top:4px}button{border:0;border-radius:6px;padding:8px 10px;margin:7px 4px 0 0;background:#eee;color:#222;font-size:13px}button.active{background:#c25735;color:white}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="panel"><strong>3D-Ziegelmauer</strong>Finger ziehen: Kamera um die Mauer bewegen.<div id="hint">Mauer steht fest auf der Fläche. Optional die Mauer selbst drehen.</div><button id="reset">Ansicht zurücksetzen</button><button id="objectMode">Mauer drehen: aus</button><button id="spin">Automatisch drehen</button></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const canvas=document.querySelector('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xdedbd6);
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.1,100);
+scene.add(new THREE.HemisphereLight(0xffffff,0x71665c,2.0));const key=new THREE.DirectionalLight(0xfff3e6,3.0);key.position.set(-4,8,6);key.castShadow=true;key.shadow.mapSize.set(2048,2048);scene.add(key);const fill=new THREE.DirectionalLight(0xffffff,1.2);fill.position.set(5,3,-5);scene.add(fill);
+// Neutrale Standfläche: Die Mauer steht darauf und schwebt nicht.
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xdedbd6,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=0;floor.receiveShadow=true;scene.add(floor);
+const wall=new THREE.Group();scene.add(wall);
+// Mörtel ist nur in den Fugen sichtbar. Es gibt keine große graue Rückwand.
+const mortarMat=new THREE.MeshStandardMaterial({color:0x88776b,roughness:1});
+const colors=[0xb94e2e,0xc25735,0xad4529,0xc76540,0xb85030,0xbd5835];
+function brickTexture(base){const c=document.createElement('canvas');c.width=256;c.height=128;const x=c.getContext('2d');x.fillStyle='#'+base.toString(16).padStart(6,'0');x.fillRect(0,0,256,128);for(let i=0;i<1000;i++){const xx=Math.random()*256,yy=Math.random()*128,r=Math.random()*1.8+.2;x.globalAlpha=Math.random()*.17;x.fillStyle=Math.random()>.5?'#f1b39a':'#55271b';x.beginPath();x.ellipse(xx,yy,r*1.4,r,Math.random(),0,Math.PI*2);x.fill()}x.globalAlpha=1;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
+const mats=colors.map(c=>new THREE.MeshStandardMaterial({map:brickTexture(c),roughness:.96}));
+const brickW=1.18,brickH=.53,brickD=.52,gapX=.045,gapY=.105,rows=12,rowStep=brickH+gapY;
+const wallWidth=6.25, wallHeight=rows*rowStep-gapY;
+// Kein grauer Vollkörper hinter den Steinen: Mörtel liegt ausschließlich in den Fugen.
+const count=6, step=brickW+gapX;
+for(let r=0;r<rows;r++){
+ const offset=(r%2===0)?-step/2:0;
+ const y=brickH/2+r*rowStep;
+ // Durchgehende waagerechte Fuge auf der Vorderfläche, damit keine Löcher entstehen.
+ // Der Mörtel sitzt nur als schmaler Klebestreifen mittig in der Mauertiefe,
+ // sodass er an den seitlich überstehenden Ziegelenden nicht unter ihnen hervorschaut.
+ if(r>0){
+  const rowWidth=count*brickW+(count-1)*gapX;
+  const prevOffset=(((r-1)%2===0)?-step/2:0);
+  // Alleen het horizontale overlapgebied van deze en de vorige rij krijgt mortel.
+  // Daardoor blijft de mortelvoeg breed en doorlopend, maar stopt hij vóór de uitstekende uiteinden.
+  const overlapWidth=rowWidth-Math.abs(offset-prevOffset);
+  const seam=new THREE.Mesh(new THREE.BoxGeometry(overlapWidth, gapY, brickD),mortarMat);
+  seam.position.set((offset+prevOffset)/2, r*rowStep-gapY/2, 0);
+  seam.castShadow=false; seam.receiveShadow=true; wall.add(seam);
+ }
+ for(let j=0;j<count;j++){
+  const x=offset+(j-(count-1)/2)*step;
+  const material=mats[Math.floor(Math.random()*mats.length)];
+  const b=new THREE.Mesh(new THREE.BoxGeometry(brickW,brickH,brickD),material);
+  b.position.set(x,y,0);b.scale.set(.98+Math.random()*.035,.97+Math.random()*.045,1);b.rotation.z=(Math.random()-.5)*.008;b.castShadow=true;b.receiveShadow=true;wall.add(b);
+  // Senkrechte Mörtelfuge zwischen den Ziegeln, ebenfalls nur im Zwischenraum.
+  if(j<count-1){
+   const joint=new THREE.Mesh(new THREE.BoxGeometry(gapX,brickH,brickD),mortarMat);
+   joint.position.set(x+step/2,y,0); joint.castShadow=false; joint.receiveShadow=true; wall.add(joint);
+  }
+ }
+}
+// Setzt den unteren Rand exakt auf die Standfläche.
+wall.position.y=0;
+let down=false,lastX=0,lastY=0,auto=false,objectMode=false;let azimuth=.35,elevation=.16,distance=10.5;let pinchStart=0,startDist=0;const target=new THREE.Vector3(0,wallHeight/2,0);
+function updateCamera(){elevation=Math.max(-.15,Math.min(1.0,elevation));camera.position.set(target.x+distance*Math.sin(azimuth)*Math.cos(elevation),target.y+distance*Math.sin(elevation),target.z+distance*Math.cos(azimuth)*Math.cos(elevation));camera.lookAt(target)}updateCamera();
+canvas.addEventListener('pointerdown',e=>{down=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;if(objectMode){wall.rotation.y+=dx*.009;}else{azimuth-=dx*.008;elevation+=dy*.006;updateCamera()}lastX=e.clientX;lastY=e.clientY});
+canvas.addEventListener('pointerup',()=>down=false);canvas.addEventListener('pointercancel',()=>down=false);
+canvas.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(6.2,Math.min(17,distance+e.deltaY*.012));updateCamera()},{passive:false});
+document.querySelector('#reset').onclick=()=>{azimuth=.35;elevation=.16;distance=10.5;wall.rotation.y=0;auto=false;document.querySelector('#spin').textContent='Automatisch drehen';updateCamera()};
+document.querySelector('#objectMode').onclick=e=>{objectMode=!objectMode;e.target.textContent=objectMode?'Mauer drehen: an':'Mauer drehen: aus';e.target.classList.toggle('active',objectMode)};
+document.querySelector('#spin').onclick=e=>{auto=!auto;e.target.textContent=auto?'Automatisch drehen: anhalten':'Automatisch drehen'};
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();updateCamera()}addEventListener('resize',resize);
+function animate(){requestAnimationFrame(animate);if(auto&&!down){if(objectMode)wall.rotation.y+=.004;else azimuth+=.004,updateCamera()}renderer.render(scene,camera)}animate();
+</script>
+</body></html>
