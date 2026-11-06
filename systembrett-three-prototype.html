@@ -27,6 +27,12 @@
       padding: 10px 12px; margin-bottom: 8px; background: rgba(0,0,0,0.2); border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: row; align-items: center;
       gap: 10px; flex-wrap: nowrap;
+      transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+    }
+    #fig-list li.figure-row.is-selected {
+      border-color: rgba(105, 145, 138, 0.42);
+      background: rgba(90, 125, 118, 0.08);
+      box-shadow: inset 0 0 0 1px rgba(95, 130, 122, 0.2);
     }
     #fig-list .figure-color-wrap { position: relative; flex-shrink: 0; }
     #fig-list .figure-color-trigger {
@@ -575,6 +581,8 @@
       controls.enabled = true;
       controls.enableZoom = true;
       controls.enablePan = true;
+      ensureSelectionRing();
+      syncSelectionRingVisual();
       const ex = document.getElementById('exit-figure-view');
       if (ex) ex.style.display = 'none';
     }
@@ -588,6 +596,8 @@
       controls.enableZoom = false;
       controls.enablePan = false;
       updateFigureViewCamera();
+      ensureSelectionRing();
+      syncSelectionRingVisual();
       const ex = document.getElementById('exit-figure-view');
       if (ex) ex.style.display = 'block';
     }
@@ -663,6 +673,119 @@
     let figureId = 0;
     const placements = [];
 
+    /** Auswahl: Sidebar + gedämpftes Highlight; Drehen nur über Ring-Griff am Brett */
+    let selectedFigureId = null;
+    const SELECTION_ACCENT = 0x5a8f88;
+    const HIGHLIGHT_EMISSIVE = new THREE.Color(SELECTION_ACCENT);
+    const HIGHLIGHT_EMISSIVE_INT = 0.22;
+
+    const SELECTION_RING_RADIUS = 0.105;
+    /** Leicht über der Brettfläche, damit Raycasts den Griff treffen (nicht zuerst die Platte) */
+    const SELECTION_RING_Y = 0.028;
+    let selectionRingBuilt = null;
+
+    function ensureSelectionRing() {
+      if (selectionRingBuilt) return selectionRingBuilt;
+      const group = new THREE.Group();
+      group.name = 'selectionRing';
+      const ringThick = 0.0024;
+      const ringGeo = new THREE.RingGeometry(
+        SELECTION_RING_RADIUS - ringThick,
+        SELECTION_RING_RADIUS + ringThick,
+        72,
+      );
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: SELECTION_ACCENT,
+        transparent: true,
+        opacity: 0.38,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = SELECTION_RING_Y;
+      ring.renderOrder = 1;
+      ring.raycast = () => {};
+      group.add(ring);
+
+      const handleMat = new THREE.MeshBasicMaterial({
+        color: SELECTION_ACCENT,
+        transparent: true,
+        opacity: 0.92,
+        depthTest: true,
+      });
+      /** Pivot um Y: Kegel fest bei +lokal Z (= R nach vorne), rotiert mit Figuren-Blickrichtung */
+      const handlePivot = new THREE.Group();
+      handlePivot.position.y = SELECTION_RING_Y + 0.004;
+      const handle = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.052, 10), handleMat);
+      handle.rotation.x = Math.PI / 2;
+      handle.position.z = SELECTION_RING_RADIUS;
+      handle.renderOrder = 2;
+      handle.userData.isSelectionRingHandle = true;
+      handlePivot.add(handle);
+      group.add(handlePivot);
+
+      scene.add(group);
+      selectionRingBuilt = { group, handlePivot, handle, ring };
+      return selectionRingBuilt;
+    }
+
+    function getPlacementById(id) {
+      return placements.find((p) => p.id === id) ?? null;
+    }
+
+    function syncSelectionRingVisual() {
+      const parts = selectionRingBuilt;
+      if (!parts) return;
+      const p = selectedFigureId != null ? getPlacementById(selectedFigureId) : null;
+      if (!p || figureViewPlacement) {
+        parts.group.visible = false;
+        return;
+      }
+      parts.group.visible = true;
+      const root = p.group;
+      const ry = root.rotation.y;
+      parts.group.position.set(root.position.x, BOARD_TOP_Y, root.position.z);
+      parts.handlePivot.rotation.y = ry;
+    }
+
+    function syncFigureMeshHighlight(mesh, on) {
+      if (!mesh?.material || mesh.material.type !== 'MeshStandardMaterial') return;
+      if (on) {
+        if (!mesh.userData._savedEmissiveForSelect) {
+          mesh.userData._savedEmissiveForSelect = {
+            emissive: mesh.material.emissive.clone(),
+            emissiveIntensity: mesh.material.emissiveIntensity,
+          };
+        }
+        mesh.material.emissive.copy(HIGHLIGHT_EMISSIVE);
+        mesh.material.emissiveIntensity = HIGHLIGHT_EMISSIVE_INT;
+      } else if (mesh.userData._savedEmissiveForSelect) {
+        const s = mesh.userData._savedEmissiveForSelect;
+        mesh.material.emissive.copy(s.emissive);
+        mesh.material.emissiveIntensity = s.emissiveIntensity;
+      }
+    }
+
+    function updateFigureMeshHighlights() {
+      for (const p of placements) {
+        const mesh = p.group.userData.mesh;
+        const sel = p.id === selectedFigureId;
+        syncFigureMeshHighlight(mesh, sel);
+      }
+    }
+
+    function setSelectedFigureId(id) {
+      selectedFigureId = id;
+      ensureSelectionRing();
+      updateFigureMeshHighlights();
+      syncSelectionRingVisual();
+      document.querySelectorAll('#fig-list li.figure-row').forEach((li) => {
+        const rowId = Number(li.dataset.id);
+        li.classList.toggle('is-selected', Number.isFinite(rowId) && rowId === selectedFigureId);
+      });
+    }
+
     function clampToBoard(x, z) {
       return {
         x: Math.max(-BOARD_HALF, Math.min(BOARD_HALF, x)),
@@ -683,16 +806,24 @@
       const ul = document.getElementById('fig-list');
       ul.innerHTML = '';
       if (!placements.length) {
+        selectedFigureId = null;
+        updateFigureMeshHighlights();
+        ensureSelectionRing();
+        syncSelectionRingVisual();
         const li = document.createElement('li');
         li.style.cssText = 'opacity:0.55;padding:14px;font-size:14px;';
         li.textContent = 'Noch keine Figur';
         ul.appendChild(li);
         return;
       }
+      if (selectedFigureId != null && !placements.some((x) => x.id === selectedFigureId)) {
+        selectedFigureId = null;
+      }
       for (const p of placements) {
         const li = document.createElement('li');
         li.className = 'figure-row';
         li.dataset.id = String(p.id);
+        if (p.id === selectedFigureId) li.classList.add('is-selected');
 
         const colorWrap = document.createElement('div');
         colorWrap.className = 'figure-color-wrap';
@@ -765,6 +896,7 @@
         viewBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="12" rx="8" ry="4.5"/><circle cx="12" cy="12" r="2"/></svg>';
         viewBtn.addEventListener('click', () => {
           closeAllColorDropdowns();
+          setSelectedFigureId(p.id);
           enterFigureView(p);
         });
 
@@ -776,16 +908,27 @@
         del.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
         del.addEventListener('click', () => removeFigure(p.id));
 
+        li.addEventListener('pointerdown', (ev) => {
+          if (ev.button !== 0) return;
+          const t = ev.target;
+          if (t.closest('.figure-color-wrap') || t.closest('.btn-delete-icon') || t.closest('.btn-figure-view') || t.closest('.figure-name-input')) return;
+          setSelectedFigureId(p.id);
+        });
+
         li.appendChild(colorWrap);
         li.appendChild(nameInput);
         li.appendChild(viewBtn);
         li.appendChild(del);
         ul.appendChild(li);
       }
+      updateFigureMeshHighlights();
+      ensureSelectionRing();
+      syncSelectionRingVisual();
     }
 
     function removeFigure(id) {
       if (figureViewPlacement && figureViewPlacement.id === id) exitFigureView();
+      if (selectedFigureId === id) selectedFigureId = null;
       const idx = placements.findIndex((p) => p.id === id);
       if (idx < 0) return;
       const p = placements[idx];
@@ -825,6 +968,7 @@
 
       figuresRoot.add(group);
       placements.push({ group, id, stripeColor: defaultStripe, name: `Figur ${id}` });
+      selectedFigureId = id;
       refreshFigureList();
       return group;
     }
@@ -836,6 +980,9 @@
     const pointer = new THREE.Vector2();
 
     let dragState = null;
+    /** Kurzer Klick auf Figur = Auswahl; Ziehen = Verschieben; Drehen am Ring-Griff auf der Platte */
+    let pendingFigurePick = null;
+    const FIGURE_CLICK_MAX_PX = 8;
 
     function getFigureRoots() {
       return figuresRoot.children;
@@ -845,6 +992,42 @@
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('pointercancel', onPointerUp);
+
+    function boardPlaneAngleForRoot(root, ndcFromEvent) {
+      raycaster.setFromCamera(ndcFromEvent, camera);
+      const pt = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(boardPlane, pt)) return null;
+      const lx = pt.x - root.position.x;
+      const lz = pt.z - root.position.z;
+      return Math.atan2(lx, lz);
+    }
+
+    function beginFigureDrag(e, root) {
+      if (e.preventDefault) e.preventDefault();
+      const fid = root.userData.figureId;
+      if (fid != null) setSelectedFigureId(fid);
+      const r = updatePointer(e);
+      raycaster.setFromCamera(r, camera);
+      controls.enabled = false;
+      renderer.domElement.setPointerCapture(e.pointerId);
+
+      dragState = {
+        root,
+        mode: 'move',
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+      };
+
+      const planeHit = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(boardPlane, planeHit)) {
+        dragState.planeOffsetX = root.position.x - planeHit.x;
+        dragState.planeOffsetZ = root.position.z - planeHit.z;
+      } else {
+        dragState.planeOffsetX = 0;
+        dragState.planeOffsetZ = 0;
+      }
+    }
 
     function onPointerDown(e) {
       if (figureViewPlacement) {
@@ -856,9 +1039,30 @@
       }
       const r = updatePointer(e);
       raycaster.setFromCamera(r, camera);
+
+      const hitObj = raycaster.intersectObjects(scene.children, true)[0]?.object;
+      if (hitObj?.userData?.isSelectionRingHandle) {
+        const p = getPlacementById(selectedFigureId);
+        if (!p || figureViewPlacement) return;
+        e.preventDefault();
+        controls.enabled = false;
+        renderer.domElement.setPointerCapture(e.pointerId);
+        const ang = boardPlaneAngleForRoot(p.group, r);
+        dragState = {
+          mode: 'rotateRing',
+          root: p.group,
+          pointerId: e.pointerId,
+          lastAngle: ang != null ? ang : p.group.rotation.y,
+        };
+        return;
+      }
+
       const roots = getFigureRoots();
       const hits = raycaster.intersectObjects(roots, true);
-      if (!hits.length) return;
+      if (!hits.length) {
+        if (e.button === 0) setSelectedFigureId(null);
+        return;
+      }
 
       let root = hits[0].object;
       while (root.parent && root.parent !== figuresRoot) root = root.parent;
@@ -866,26 +1070,12 @@
       e.preventDefault();
       controls.enabled = false;
       renderer.domElement.setPointerCapture(e.pointerId);
-
-      const shift = e.shiftKey;
-      dragState = {
+      pendingFigurePick = {
         root,
-        mode: shift ? 'rotate' : 'move',
         pointerId: e.pointerId,
-        startClientX: e.clientX,
-        startRotY: root.rotation.y,
+        startX: e.clientX,
+        startY: e.clientY,
       };
-
-      if (!shift) {
-        const planeHit = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(boardPlane, planeHit)) {
-          dragState.planeOffsetX = root.position.x - planeHit.x;
-          dragState.planeOffsetZ = root.position.z - planeHit.z;
-        } else {
-          dragState.planeOffsetX = 0;
-          dragState.planeOffsetZ = 0;
-        }
-      }
     }
 
     function updatePointer(e) {
@@ -896,6 +1086,23 @@
     }
 
     function onPointerMove(e) {
+      if (pendingFigurePick && e.pointerId === pendingFigurePick.pointerId && !dragState) {
+        const dx = e.clientX - pendingFigurePick.startX;
+        const dy = e.clientY - pendingFigurePick.startY;
+        if (Math.hypot(dx, dy) >= FIGURE_CLICK_MAX_PX) {
+          const pp = pendingFigurePick;
+          pendingFigurePick = null;
+          beginFigureDrag(
+            {
+              preventDefault: () => e.preventDefault(),
+              clientX: e.clientX,
+              clientY: e.clientY,
+              pointerId: pp.pointerId,
+            },
+            pp.root,
+          );
+        }
+      }
       if (figureViewLookDrag && e.pointerId === figureViewLookDrag.pointerId) {
         const dx = e.clientX - figureViewLookDrag.lastX;
         const dy = e.clientY - figureViewLookDrag.lastY;
@@ -914,6 +1121,18 @@
       const r = updatePointer(e);
       raycaster.setFromCamera(r, camera);
 
+      if (dragState.mode === 'rotateRing') {
+        const newAng = boardPlaneAngleForRoot(dragState.root, r);
+        if (newAng == null) return;
+        let d = newAng - dragState.lastAngle;
+        if (d > Math.PI) d -= 2 * Math.PI;
+        if (d < -Math.PI) d += 2 * Math.PI;
+        dragState.root.rotation.y += d;
+        dragState.lastAngle = newAng;
+        syncSelectionRingVisual();
+        return;
+      }
+
       if (dragState.mode === 'move') {
         const pt = new THREE.Vector3();
         if (raycaster.ray.intersectPlane(boardPlane, pt)) {
@@ -924,9 +1143,7 @@
           dragState.root.position.z = c.z;
           dragState.root.position.y = BOARD_TOP_Y;
         }
-      } else {
-        const dx = e.clientX - dragState.startClientX;
-        dragState.root.rotation.y = dragState.startRotY + dx * 0.01;
+        syncSelectionRingVisual();
       }
     }
 
@@ -936,9 +1153,23 @@
         try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
         return;
       }
+      if (pendingFigurePick && e.pointerId === pendingFigurePick.pointerId && !dragState) {
+        const pp = pendingFigurePick;
+        pendingFigurePick = null;
+        const dx = e.clientX - pp.startX;
+        const dy = e.clientY - pp.startY;
+        try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (Math.hypot(dx, dy) < FIGURE_CLICK_MAX_PX) {
+          const fid = pp.root.userData.figureId;
+          if (fid != null) setSelectedFigureId(fid);
+        }
+        controls.enabled = !figureViewPlacement;
+        return;
+      }
       if (!dragState || e.pointerId !== dragState.pointerId) return;
       dragState = null;
       controls.enabled = !figureViewPlacement;
+      syncSelectionRingVisual();
       try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
     }
 
