@@ -54,6 +54,30 @@
       padding: 0; cursor: pointer; flex-shrink: 0;
     }
     #fig-list .figure-color-opt:hover { border-color: #c4a574; transform: scale(1.06); }
+    #fig-list .figure-size-wrap { position: relative; flex-shrink: 0; }
+    #fig-list .figure-size-trigger {
+      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);
+      padding: 0; cursor: pointer; display: block;
+      background: rgba(0,0,0,0.22); color: #f0ebe3;
+      font-size: 12px; font-weight: 700; line-height: 1;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
+    }
+    #fig-list .figure-size-trigger:hover { border-color: rgba(255,255,255,0.55); }
+    #fig-list .figure-size-trigger:focus { outline: 2px solid #c4a574; outline-offset: 2px; }
+    #fig-list .figure-size-dropdown {
+      display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 30;
+      flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px;
+      background: #242018; border: 1px solid rgba(200,190,170,0.25);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    }
+    #fig-list .figure-size-dropdown.is-open { display: flex; }
+    #fig-list .figure-size-opt {
+      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.2);
+      padding: 0; cursor: pointer; flex-shrink: 0;
+      background: rgba(0,0,0,0.22); color: #f0ebe3; font-size: 12px; font-weight: 700;
+    }
+    #fig-list .figure-size-opt:hover { border-color: #c4a574; transform: scale(1.06); }
+    #fig-list .figure-size-opt.is-current { border-color: rgba(95, 130, 122, 0.55); background: rgba(90, 125, 118, 0.18); }
     #fig-list .figure-name-input {
       flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
       background: rgba(0,0,0,0.25); color: #f0ebe3; font-size: 15px; font-weight: 600;
@@ -241,7 +265,27 @@
       return geo;
     }
 
-    const FIGURE_SCALE = 0.11;
+    /** M = bisherige Größe; S/L jeweils ±25 % */
+    const FIGURE_SCALE_M = 0.11;
+    const FIGURE_SIZE_MULT = { S: 0.75, M: 1, L: 1.25 };
+    const FIGURE_SIZES = ['S', 'M', 'L'];
+
+    function figureScaleForSize(size) {
+      const mult = FIGURE_SIZE_MULT[size] ?? 1;
+      return FIGURE_SCALE_M * mult;
+    }
+
+    function applyFigureSize(p) {
+      const mesh = p.group.userData.mesh;
+      const s = figureScaleForSize(p.size || 'M');
+      mesh.scale.setScalar(s);
+      mesh.position.y = -figFootY * s;
+      if (p.id === selectedFigureId) syncSelectionRingVisual();
+    }
+
+    function selectionRingScaleForPlacement(p) {
+      return FIGURE_SIZE_MULT[p?.size ?? 'M'] ?? 1;
+    }
 
     // --- Szene ---
     const wrap = document.getElementById('canvas-wrap');
@@ -679,7 +723,7 @@
     const HIGHLIGHT_EMISSIVE = new THREE.Color(SELECTION_ACCENT);
     const HIGHLIGHT_EMISSIVE_INT = 0.22;
 
-    const SELECTION_RING_RADIUS = 0.105;
+    const SELECTION_RING_RADIUS = 0.105; /* Basis bei Größe M */
     /** Leicht über der Brettfläche, damit Raycasts den Griff treffen (nicht zuerst die Platte) */
     const SELECTION_RING_Y = 0.028;
     let selectionRingBuilt = null;
@@ -745,7 +789,11 @@
       parts.group.visible = true;
       const root = p.group;
       const ry = root.rotation.y;
+      const sizeMult = selectionRingScaleForPlacement(p);
+      const ringR = SELECTION_RING_RADIUS * sizeMult;
       parts.group.position.set(root.position.x, BOARD_TOP_Y, root.position.z);
+      parts.ring.scale.set(sizeMult, sizeMult, sizeMult);
+      parts.handle.position.z = ringR;
       parts.handlePivot.rotation.y = ry;
     }
 
@@ -795,11 +843,22 @@
 
     function closeAllColorDropdowns() {
       document.querySelectorAll('#fig-list .figure-color-dropdown.is-open').forEach((el) => el.classList.remove('is-open'));
+      document.querySelectorAll('#fig-list .figure-color-trigger[aria-expanded="true"]').forEach((el) => el.setAttribute('aria-expanded', 'false'));
+    }
+
+    function closeAllSizeDropdowns() {
+      document.querySelectorAll('#fig-list .figure-size-dropdown.is-open').forEach((el) => el.classList.remove('is-open'));
+      document.querySelectorAll('#fig-list .figure-size-trigger[aria-expanded="true"]').forEach((el) => el.setAttribute('aria-expanded', 'false'));
+    }
+
+    function closeAllFigurePickers() {
+      closeAllColorDropdowns();
+      closeAllSizeDropdowns();
     }
 
     document.addEventListener('pointerdown', (ev) => {
-      if (ev.target.closest('.figure-color-wrap')) return;
-      closeAllColorDropdowns();
+      if (ev.target.closest('.figure-color-wrap') || ev.target.closest('.figure-size-wrap')) return;
+      closeAllFigurePickers();
     });
 
     function refreshFigureList() {
@@ -862,6 +921,7 @@
           e.stopPropagation();
           const open = dropdown.classList.toggle('is-open');
           if (open) {
+            closeAllSizeDropdowns();
             document.querySelectorAll('#fig-list .figure-color-dropdown.is-open').forEach((d) => {
               if (d !== dropdown) d.classList.remove('is-open');
             });
@@ -873,6 +933,63 @@
 
         colorWrap.appendChild(trigger);
         colorWrap.appendChild(dropdown);
+
+        const sizeWrap = document.createElement('div');
+        sizeWrap.className = 'figure-size-wrap';
+
+        const sizeTrigger = document.createElement('button');
+        sizeTrigger.type = 'button';
+        sizeTrigger.className = 'figure-size-trigger';
+        const currentSize = p.size || 'M';
+        sizeTrigger.textContent = currentSize;
+        sizeTrigger.title = 'Größe wählen';
+        sizeTrigger.setAttribute('aria-label', 'Größe wählen');
+        sizeTrigger.setAttribute('aria-expanded', 'false');
+
+        const sizeDropdown = document.createElement('div');
+        sizeDropdown.className = 'figure-size-dropdown';
+        sizeDropdown.setAttribute('role', 'listbox');
+
+        for (const sz of FIGURE_SIZES) {
+          const opt = document.createElement('button');
+          opt.type = 'button';
+          opt.className = 'figure-size-opt';
+          opt.textContent = sz;
+          opt.title = `Größe ${sz}`;
+          opt.setAttribute('aria-label', `Größe ${sz}`);
+          if (currentSize === sz) opt.classList.add('is-current');
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (p.size !== sz) {
+              p.size = sz;
+              applyFigureSize(p);
+            }
+            sizeTrigger.textContent = sz;
+            sizeDropdown.querySelectorAll('.figure-size-opt').forEach((b) => {
+              b.classList.toggle('is-current', b.textContent === sz);
+            });
+            sizeDropdown.classList.remove('is-open');
+            sizeTrigger.setAttribute('aria-expanded', 'false');
+          });
+          sizeDropdown.appendChild(opt);
+        }
+
+        sizeTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = sizeDropdown.classList.toggle('is-open');
+          if (open) {
+            closeAllColorDropdowns();
+            document.querySelectorAll('#fig-list .figure-size-dropdown.is-open').forEach((d) => {
+              if (d !== sizeDropdown) d.classList.remove('is-open');
+            });
+            sizeTrigger.setAttribute('aria-expanded', 'true');
+          } else {
+            sizeTrigger.setAttribute('aria-expanded', 'false');
+          }
+        });
+
+        sizeWrap.appendChild(sizeTrigger);
+        sizeWrap.appendChild(sizeDropdown);
 
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
@@ -895,7 +1012,7 @@
         viewBtn.setAttribute('aria-label', 'Figurensicht');
         viewBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="12" rx="8" ry="4.5"/><circle cx="12" cy="12" r="2"/></svg>';
         viewBtn.addEventListener('click', () => {
-          closeAllColorDropdowns();
+          closeAllFigurePickers();
           setSelectedFigureId(p.id);
           enterFigureView(p);
         });
@@ -911,11 +1028,12 @@
         li.addEventListener('pointerdown', (ev) => {
           if (ev.button !== 0) return;
           const t = ev.target;
-          if (t.closest('.figure-color-wrap') || t.closest('.btn-delete-icon') || t.closest('.btn-figure-view') || t.closest('.figure-name-input')) return;
+          if (t.closest('.figure-color-wrap') || t.closest('.figure-size-wrap') || t.closest('.btn-delete-icon') || t.closest('.btn-figure-view') || t.closest('.figure-name-input')) return;
           setSelectedFigureId(p.id);
         });
 
         li.appendChild(colorWrap);
+        li.appendChild(sizeWrap);
         li.appendChild(nameInput);
         li.appendChild(viewBtn);
         li.appendChild(del);
@@ -951,8 +1069,10 @@
     function addFigure() {
       const group = new THREE.Group();
       const mesh = new THREE.Mesh(figGeo, figMat.clone());
-      mesh.scale.setScalar(FIGURE_SCALE);
-      mesh.position.y = -figFootY * FIGURE_SCALE;
+      const defaultSize = 'M';
+      const meshScale = figureScaleForSize(defaultSize);
+      mesh.scale.setScalar(meshScale);
+      mesh.position.y = -figFootY * meshScale;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       attachFigurineEyes(mesh);
@@ -967,7 +1087,7 @@
       group.userData.mesh = mesh;
 
       figuresRoot.add(group);
-      placements.push({ group, id, stripeColor: defaultStripe, name: `Figur ${id}` });
+      placements.push({ group, id, stripeColor: defaultStripe, size: defaultSize, name: `Figur ${id}` });
       selectedFigureId = id;
       refreshFigureList();
       return group;
