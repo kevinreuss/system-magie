@@ -34,9 +34,18 @@
       background: rgba(90, 125, 118, 0.08);
       box-shadow: inset 0 0 0 1px rgba(95, 130, 122, 0.2);
     }
+    #add-figure-wrap { position: relative; }
+    #add-figure { display: flex; justify-content: space-between; align-items: center; }
+    #add-figure::after { content: '▾'; transition: transform 0.15s; }
+    #add-figure[aria-expanded="true"]::after { transform: rotate(180deg); }
+    #add-figure-options { position: absolute; top: 100%; left: 0; right: 0; z-index: 35; padding: 6px; border: 1px solid #6a5c4a; border-radius: 11px; background: #242018; box-shadow: 0 10px 28px rgba(0,0,0,0.45); }
+    #add-figure-options button { margin: 0; text-align: left; background: transparent; border-color: transparent; }
+    #add-figure-options button:hover, #add-figure-options button:focus-visible { background: #4a4136; }
+
     #fig-list .figure-color-wrap { position: relative; flex-shrink: 0; }
     #fig-list .figure-color-trigger {
-      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);
+      width: 38px; height: 38px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);
+      background: #302a22 center / contain no-repeat;
       padding: 0; cursor: pointer; display: block;
       box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
     }
@@ -45,18 +54,23 @@
     #fig-list .figure-color-dropdown {
       display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 30;
       flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px;
+      max-height: min(410px, 60vh); overflow-y: auto;
       background: #242018; border: 1px solid rgba(200,190,170,0.25);
       box-shadow: 0 10px 28px rgba(0,0,0,0.45);
     }
     #fig-list .figure-color-dropdown.is-open { display: flex; }
     #fig-list .figure-color-opt {
-      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.2);
-      padding: 0; cursor: pointer; flex-shrink: 0;
+      width: 200px; height: 42px; border-radius: 8px; border: 2px solid transparent;
+      background: #302a22 left center / 40px 40px no-repeat;
+      padding: 0 10px 0 46px; color: #f0ebe3; text-align: left; font: inherit; font-size: 13px;
+      cursor: pointer; flex-shrink: 0;
     }
+    #fig-list .figure-color-opt[aria-selected="true"] { border-color: #c4a574; background-color: #494032; }
     #fig-list .figure-color-opt:hover { border-color: #c4a574; transform: scale(1.06); }
     #fig-list .figure-size-wrap { position: relative; flex-shrink: 0; }
     #fig-list .figure-size-trigger {
-      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);
+      width: 38px; height: 38px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);
+      background: #302a22 center / contain no-repeat;
       padding: 0; cursor: pointer; display: block;
       background: rgba(0,0,0,0.22); color: #f0ebe3;
       font-size: 12px; font-weight: 700; line-height: 1;
@@ -71,13 +85,12 @@
       box-shadow: 0 10px 28px rgba(0,0,0,0.45);
     }
     #fig-list .figure-size-dropdown.is-open { display: flex; }
-    #fig-list .figure-size-opt {
-      width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.2);
-      padding: 0; cursor: pointer; flex-shrink: 0;
-      background: rgba(0,0,0,0.22); color: #f0ebe3; font-size: 12px; font-weight: 700;
-    }
-    #fig-list .figure-size-opt:hover { border-color: #c4a574; transform: scale(1.06); }
-    #fig-list .figure-size-opt.is-current { border-color: rgba(95, 130, 122, 0.55); background: rgba(90, 125, 118, 0.18); }
+    #fig-list .figure-size-dropdown { width: 190px; padding: 12px; }
+    #fig-list .figure-size-trigger { width: 48px; }
+    #fig-list .figure-size-label, #fig-list .figure-size-limits { display: flex; justify-content: space-between; font-size: 12px; }
+    #fig-list .figure-size-limits { color: #b9ae9e; }
+    #fig-list .figure-size-slider { width: 100%; margin: 8px 0; accent-color: #c4a574; cursor: pointer; }
+    #fig-list .figure-size-slider:focus-visible { outline: 2px solid #c4a574; outline-offset: 3px; }
     #fig-list .figure-name-input {
       flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
       background: rgba(0,0,0,0.25); color: #f0ebe3; font-size: 15px; font-weight: 600;
@@ -174,7 +187,13 @@
       <h1>System Magie</h1>
       <button type="button" id="sidebar-close" aria-label="Seitenleiste schließen">×</button>
     </div>
-    <button type="button" id="add-figure">Figur hinzufügen</button>
+    <div id="add-figure-wrap">
+      <button type="button" id="add-figure" aria-expanded="false" aria-controls="add-figure-options">Figur hinzufügen</button>
+      <div id="add-figure-options" role="group" aria-label="Figurentyp wählen" hidden>
+        <button type="button" data-figure-type="human">Mensch</button>
+        <button type="button" data-figure-type="light">Leuchtfigur</button>
+      </div>
+    </div>
     <div class="section-label">Figuren</div>
     <ul id="fig-list"></ul>
   </aside>
@@ -182,6 +201,8 @@
 
   <!-- Winter-Texturen als klassisches Script: funktioniert auch per file:// (ES-Import von ./winterroom-textures.mjs dort oft blockiert). -->
   <script src="winterroom-textures.js"></script>
+  <script src="table-textures.js"></script>
+  <script src="light-figure.js"></script>
   <script>
     (function () {
       const el = document.getElementById('boot-error');
@@ -228,6 +249,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const { createLightFigure, tintLightFigure } = window.createLightFigureLibrary(THREE);
 
     const WINTER_ROOM_TEXTURES = window.WINTER_ROOM_TEXTURES;
     if (!WINTER_ROOM_TEXTURES || typeof WINTER_ROOM_TEXTURES !== 'object') {
@@ -305,12 +328,14 @@
       const profile = buildCatmullRomProfile(control);
 
       const v = [];
+      const uv = [];
       const ix = [];
       const seg = 96;
       for (let j = 0; j < profile.length; j++) {
         for (let i = 0; i <= seg; i++) {
           const a = 2 * Math.PI * i / seg;
           v.push(profile[j][0] * Math.cos(a), profile[j][1], profile[j][0] * Math.sin(a));
+          uv.push(i / seg, profile[j][1] / V36_Y_MAX);
         }
       }
       for (let j = 0; j < profile.length - 1; j++) {
@@ -330,6 +355,11 @@
       for (let i = 0; i < seg; i++) ci.push(0, i + 1, i + 2);
       const cap = meshFromVerts(cv, ci);
 
+      uv.push(0.5, 0.5);
+      for (let i = 0; i <= seg; i++) {
+        const a = 2 * Math.PI * i / seg;
+        uv.push(0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a));
+      }
       const pos = [...side.vertices, ...cap.vertices];
       const norm = [...side.normals, ...cap.normals];
       const idx = [...side.indices, ...cap.indices.map((n) => n + side.vertices.length / 3)];
@@ -337,30 +367,34 @@
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(pos), 3));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(norm), 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
       geo.setIndex(idx);
       return geo;
     }
 
-    /** M = bisherige Größe; S/L jeweils ±25 % */
+    // Faktor 1 entspricht der bisherigen Größe M.
     const FIGURE_SCALE_M = 0.11;
-    const FIGURE_SIZE_MULT = { S: 0.75, M: 1, L: 1.25 };
-    const FIGURE_SIZES = ['S', 'M', 'L'];
+    const FIGURE_SIZE_MIN = 0.5;
+    const FIGURE_SIZE_MAX = 2;
 
-    function figureScaleForSize(size) {
-      const mult = FIGURE_SIZE_MULT[size] ?? 1;
-      return FIGURE_SCALE_M * mult;
+    function figureScaleForSize(size = 1) {
+      return FIGURE_SCALE_M * THREE.MathUtils.clamp(size, FIGURE_SIZE_MIN, FIGURE_SIZE_MAX);
+    }
+
+    function formatFigureSize(size) {
+      return size.toLocaleString('de-DE', { maximumFractionDigits: 2 }) + '×';
     }
 
     function applyFigureSize(p) {
       const mesh = p.group.userData.mesh;
-      const s = figureScaleForSize(p.size || 'M');
+      const s = figureScaleForSize(p.size ?? 1);
       mesh.scale.setScalar(s);
-      mesh.position.y = -figFootY * s;
+      mesh.position.y = -mesh.geometry.boundingBox.min.y * s;
       if (p.id === selectedFigureId) syncSelectionRingVisual();
     }
 
     function selectionRingScaleForPlacement(p) {
-      return FIGURE_SIZE_MULT[p?.size ?? 'M'] ?? 1;
+      return p?.size ?? 1;
     }
 
     // --- Szene ---
@@ -421,9 +455,9 @@
       return { ambient, hemi, key, fill, rim };
     })();
 
-    /** Feste Beleuchtung: Abendgold (mit Licht um 90° gedreht wie zuletzt eingestellt) */
+    /** Beleuchtung für Tisch und Figuren; die Raumtexturen enthalten bereits ihr Licht. */
     const ROOM_LIGHT = {
-      background: 0xb9aea3,
+      background: 0xd6d1c4,
       exposure: 1.02,
       ambient: { color: 0xf5e0c8, intensity: 0.2 },
       hemi: { sky: 0xf8eee4, ground: 0x4c4036, intensity: 0.5 },
@@ -480,7 +514,6 @@
 
     async function loadWinterRoomTextures() {
       const loader = new THREE.TextureLoader();
-      const maxAni = Math.min(8, renderer.capabilities.getMaxAnisotropy());
       const keys = Object.keys(WINTER_ROOM_TEXTURES);
       const map = {};
       for (const key of keys) {
@@ -493,7 +526,9 @@
               (tex) => {
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-                tex.anisotropy = maxAni;
+                // Wie im Original: lineare Filterung ohne Mipmaps.
+                tex.minFilter = tex.magFilter = THREE.LinearFilter;
+                tex.generateMipmaps = false;
                 resolve(tex);
               },
               undefined,
@@ -555,24 +590,20 @@
         let uMax = 1;
         let vMin = 0;
         let vMax = def.vMax ?? 1;
-        const mat = def.solid
-          ? new THREE.MeshStandardMaterial({
-            color: new THREE.Color(...def.solid),
-            roughness: 0.95,
-            metalness: 0,
-            side: THREE.DoubleSide,
-          })
-          : new THREE.MeshStandardMaterial({
-            map: texMap[def.key] || null,
-            color: 0xffffff,
-            roughness: 0.92,
-            metalness: 0,
-            side: THREE.DoubleSide,
-          });
+        // V20 gibt die Texturfarben direkt aus: Licht und Schatten sind bereits
+        // im Bild enthalten. Zusätzliche Beleuchtung oder ACES würde sie verfälschen.
+        const mat = new THREE.MeshBasicMaterial({
+          map: def.solid ? null : texMap[def.key] || null,
+          color: def.solid
+            ? new THREE.Color().setRGB(...def.solid, THREE.SRGBColorSpace)
+            : 0xffffff,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+        });
         const geo = buildQuadGeometry(def.corners);
         setQuadUVs(geo, uMin, uMax, vMin, vMax);
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.receiveShadow = true;
+        mesh.name = def.name;
         scene.add(mesh);
       }
     }
@@ -581,22 +612,66 @@
       console.error('Winterraum konnte nicht aufgebaut werden:', e);
     });
 
-    const wood = new THREE.MeshStandardMaterial({ color: 0x8b5a3c, roughness: 0.75 });
-    const woodDark = new THREE.MeshStandardMaterial({ color: 0x5c3d28, roughness: 0.8 });
-    const woodBoard = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.65 });
+    // V88 zeichnet die Holzfotos ohne zusätzliche Lichtfärbung.
+    // Feste UVs und GPU-Perspektivkorrektur halten die Maserung beim Zoomen stabil.
+    const tableTextureLoader = new THREE.TextureLoader();
+    const tableAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    function tableMaterial(color, textureKey) {
+      const material = new THREE.MeshBasicMaterial({
+        color, toneMapped: false, side: THREE.DoubleSide,
+      });
+      if (textureKey) {
+        const source = window.TABLE_TEXTURES?.[textureKey];
+        if (!source) throw new Error(`Tischtextur fehlt: ${textureKey} (table-textures.js)`);
+        tableTextureLoader.load(source, (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+          texture.magFilter = THREE.LinearFilter;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.generateMipmaps = true;
+          texture.anisotropy = tableAnisotropy;
+          material.map = texture;
+          material.color.setHex(0xffffff);
+          material.needsUpdate = true;
+        }, undefined, (error) => {
+          console.error(`Tischtextur konnte nicht geladen werden: ${textureKey}`, error);
+        });
+      }
+      return material;
+    }
+    const tableTop = tableMaterial('#a97749', 'top');
+    const tableSide = tableMaterial('#754b2c', 'tableSide');
+    const tableLeg = tableMaterial('#79502f', 'leg');
+    const boardTop = tableMaterial('#d8bd8d', 'board');
+    const boardEdge = tableMaterial('#b29568', 'edgeStrip');
+    const legTop = tableMaterial('#91633d');
+    const underside = tableMaterial('#62452d');
+    const boardBaseTop = tableMaterial('#b49767');
+    const boardBaseFront = tableMaterial('#9e7c51');
+    const boardBaseSide = tableMaterial('#a98758');
 
     const tableGroup = new THREE.Group();
     scene.add(tableGroup);
 
-    function addBox(x1, x2, y1, y2, z1, z2, mat) {
-      const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
-      const geo = new THREE.BoxGeometry(dx, dy, dz);
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      tableGroup.add(m);
-      return m;
+    function addBox(x1, x2, y1, y2, z1, z2, materials) {
+      // Gleiche Eckpunkt- und Bildausrichtung wie die Canvas-Flächen der V88.
+      // Jede Oberfläche existiert genau einmal; keine überlagerte Brett-Textur.
+      const faces = [
+        [[x1,y2,z1], [x2,y2,z1], [x2,y2,z2], [x1,y2,z2]],
+        [[x1,y1,z1], [x2,y1,z1], [x2,y2,z1], [x1,y2,z1]],
+        [[x2,y1,z1], [x2,y1,z2], [x2,y2,z2], [x2,y2,z1]],
+        [[x1,y1,z2], [x2,y1,z2], [x2,y2,z2], [x1,y2,z2]],
+        [[x1,y1,z1], [x1,y1,z2], [x1,y2,z2], [x1,y2,z1]],
+        [[x1,y1,z1], [x2,y1,z1], [x2,y1,z2], [x1,y1,z2]],
+      ];
+      faces.forEach((corners, i) => {
+        const geometry = buildQuadGeometry(corners);
+        // Canvas-Bildursprung oben links, Three-Texturursprung unten links.
+        setQuadUVs(geometry, 0, 1, 1, 0);
+        const mesh = new THREE.Mesh(geometry, materials[i]);
+        mesh.castShadow = true;
+        tableGroup.add(mesh);
+      });
     }
 
     function lw(py) { return py * S; }
@@ -608,25 +683,25 @@
       for (const zc of [-inset, inset]) {
         const lx1 = lw(xc - leg / 2), lx2 = lw(xc + leg / 2);
         const lz1 = lw(zc - leg / 2), lz2 = lw(zc + leg / 2);
-        addBox(lx1, lx2, yLeg0, yLeg1, lz1, lz2, woodDark);
+        addBox(lx1, lx2, yLeg0, yLeg1, lz1, lz2, [legTop, tableLeg, tableLeg, tableLeg, tableLeg, underside]);
       }
     }
 
     const ttY0 = localTableYToWorld(0.19);
     const ttY1 = localTableYToWorld(0.52);
     const tw = lw(2);
-    addBox(-tw, tw, ttY0, ttY1, -tw, tw, wood);
+    addBox(-tw, tw, ttY0, ttY1, -tw, tw, [tableTop, tableSide, tableSide, tableSide, tableSide, underside]);
 
     const b = B_BOARD_LOCAL;
     const bottom = 0.535, top = TOP_LOCAL;
     const bb0 = localTableYToWorld(0.52);
     const bb1 = localTableYToWorld(bottom);
     const bw = lw(b);
-    addBox(-bw, bw, bb0, bb1, -bw, bw, woodBoard);
+    addBox(-bw, bw, bb0, bb1, -bw, bw, [boardBaseTop, boardBaseFront, boardBaseSide, boardBaseFront, boardBaseSide, underside]);
 
     const be0 = localTableYToWorld(bottom);
     const be1 = localTableYToWorld(top);
-    addBox(-bw, bw, be0, be1, -bw, bw, woodBoard);
+    addBox(-bw, bw, be0, be1, -bw, bw, [boardTop, boardEdge, boardEdge, boardEdge, boardEdge, underside]);
 
     const boardPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -BOARD_TOP_Y);
 
@@ -635,10 +710,45 @@
     const figFootY = figGeo.boundingBox.min.y;
     const FIG_BB_MAX_Y = figGeo.boundingBox.max.y;
 
+    // Nahtlose, längs verlaufende Fasern mit unregelmäßigen Jahresringen.
+    function createFigureWoodTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      const pixels = ctx.createImageData(canvas.width, canvas.height);
+      for (let y = 0; y < canvas.height; y++) {
+        const v = y / canvas.height;
+        for (let x = 0; x < canvas.width; x++) {
+          const u = x / canvas.width * Math.PI * 2;
+          const warp = 0.7 * Math.sin(v * 7 + Math.sin(u * 3))
+            + 0.28 * Math.sin(v * 17 + Math.cos(u * 2));
+          const grain = Math.sin(u * 22 + warp * 3);
+          const fine = Math.sin(u * 91 + warp * 8);
+          const pores = Math.sin(u * 173 + Math.sin(v * 53) * 0.6);
+          const shade = Math.round(218 + grain * 17 + fine * 7 + pores * 3
+            - 27 * Math.pow(Math.max(0, grain), 12));
+          const i = (y * canvas.width + x) * 4;
+          pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade;
+          pixels.data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(pixels, 0, 0);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      return texture;
+    }
+    const figureWoodTexture = createFigureWoodTexture();
+
     const figMat = new THREE.MeshStandardMaterial({
-      color: 0xb3b0ab,
-      roughness: 0.55,
-      metalness: 0.05,
+      color: 0xd6aa73,
+      map: figureWoodTexture,
+      bumpMap: figureWoodTexture,
+      bumpScale: 0.008,
+      roughness: 0.72,
+      metalness: 0,
     });
     // Augen: Im Original per Shader-Kreise in lokalem Raum. Three r169 mappt MeshStandard auf
     // Physical-Shader – onBeforeCompile-Hooks trafen zuverlässig nicht die finale Farbe.
@@ -656,24 +766,61 @@
         const eye = new THREE.Mesh(eyeGeo, eyeMatTemplate.clone());
         eye.position.set(sign * EYE_X, EYE_Y, EYE_Z);
         eye.renderOrder = 2;
+        eye.userData.isContrastMark = true;
+        eye.material.toneMapped = false;
         parentMesh.add(eye);
       }
     }
 
-    // Pfeil: mittig über der Figur (x=z=0), auf Kopfoberkante; zeigt in Blickrichtung (lokales +Z, wie Augen)
+    // Aufgedruckte Kopfmarkierung auf der gewölbten Oberfläche, Spitze nach lokal +Z.
     const FACING_DIR = new THREE.Vector3(0, 0, 1);
-    function attachFacingArrow(parentMesh) {
-      const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: true });
-      const h = 0.2;
-      const rBase = 0.05;
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(rBase, h, 10), arrowMat);
-      // Kegel-Achse Standard = +Y (Spitze bei +h/2). Rotation +90° um X: Achse +Y → +Z (Spitze zeigt nach vorne)
-      cone.rotation.x = Math.PI / 2;
-      const lift = 0.035;
-      cone.position.set(0, FIG_BB_MAX_Y + lift, 0);
-      cone.renderOrder = 2;
-      parentMesh.add(cone);
-      parentMesh.userData.facingArrow = cone;
+    const headMarkCanvas = document.createElement('canvas');
+    headMarkCanvas.width = headMarkCanvas.height = 256;
+    const headMarkContext = headMarkCanvas.getContext('2d');
+    headMarkContext.fillStyle = '#ffffff';
+    headMarkContext.beginPath();
+    headMarkContext.moveTo(128, 32);
+    headMarkContext.lineTo(193, 112);
+    headMarkContext.lineTo(150, 112);
+    headMarkContext.lineTo(150, 215);
+    headMarkContext.lineTo(106, 215);
+    headMarkContext.lineTo(106, 112);
+    headMarkContext.lineTo(63, 112);
+    headMarkContext.closePath();
+    headMarkContext.fill();
+    const headMarkTexture = new THREE.CanvasTexture(headMarkCanvas);
+    headMarkTexture.colorSpace = THREE.SRGBColorSpace;
+    headMarkTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+
+    function attachHeadMark(parentMesh) {
+      // Identische Kopfkontur verhindert eine schwebende, flache Pfeilfläche.
+      const geometry = figGeo.clone();
+      const positions = geometry.getAttribute('position');
+      const uv = geometry.getAttribute('uv');
+      const indices = [];
+      for (let i = 0; i < positions.count; i++) {
+        uv.setXY(i, 0.5 + positions.getX(i) / 0.44, 0.5 + positions.getZ(i) / 0.44);
+      }
+      for (let i = 0; i < geometry.index.count; i += 3) {
+        const triangle = [geometry.index.getX(i), geometry.index.getX(i + 1), geometry.index.getX(i + 2)];
+        if (triangle.every((v) => positions.getY(v) > 2.16)) indices.push(...triangle);
+      }
+      geometry.setIndex(indices);
+      const material = new THREE.MeshBasicMaterial({
+        map: headMarkTexture,
+        color: 0x000000,
+        toneMapped: false,
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      const mark = new THREE.Mesh(geometry, material);
+      mark.renderOrder = 2;
+      mark.userData.isContrastMark = true;
+      mark.raycast = () => {};
+      parentMesh.add(mark);
       parentMesh.userData.facingDirLocal = FACING_DIR.clone();
     }
 
@@ -752,39 +899,85 @@
 
     document.getElementById('exit-figure-view').addEventListener('click', () => exitFigureView());
 
-    /** Farbstreifen: Ring im unteren Fünftel der Figur (Profil-Höhe), Mantel-konform */
-    const STRIPE_COLORS = [
-      { name: 'Weiß', hex: 0xffffff },
-      { name: 'Rot', hex: 0xc62828 },
-      { name: 'Blau', hex: 0x1565c0 },
-      { name: 'Grün', hex: 0x2e7d32 },
-      { name: 'Gelb', hex: 0xf9a825 },
-      { name: 'Violett', hex: 0x6a1b9a },
-      { name: 'Orange', hex: 0xef6c00 },
+    // Die neutrale Maserung bleibt auch unter farbiger Holzbeize sichtbar.
+    const FIGURE_COLORS = [
+      { name: 'Naturholz (Standard)', hex: null, group: 'Hell' },
+      { name: 'Weiß', hex: 0xffffff, group: 'Hell' },
+      { name: 'Gelb', hex: 0xe3ba55, group: 'Hell' },
+      { name: 'Orange', hex: 0xd68b46, group: 'Hell' },
+      { name: 'Rot', hex: 0xc45149, group: 'Dunkel' },
+      { name: 'Blau', hex: 0x477fb5, group: 'Dunkel' },
+      { name: 'Grün', hex: 0x658552, group: 'Dunkel' },
+      { name: 'Violett', hex: 0x9569a6, group: 'Dunkel' },
     ];
 
-    function setFigureStripeColor(parentMesh, hex) {
-      if (parentMesh.userData.colorRing) {
-        const old = parentMesh.userData.colorRing;
-        parentMesh.remove(old);
-        old.geometry.dispose();
-        old.material.dispose();
-        parentMesh.userData.colorRing = null;
+    function setFigureColor(mesh, hex) {
+      if (mesh.userData.figureType === 'light') { tintLightFigure(mesh, hex); return; }
+      mesh.material.color.setHex(hex ?? 0xd6aa73);
+      const color = FIGURE_COLORS.find((c) => c.hex === hex);
+      const contrast = color?.group === 'Dunkel' ? 0xffffff : 0x000000;
+      mesh.children.forEach((child) => {
+        if (child.userData.isContrastMark) child.material.color.setHex(contrast);
+      });
+    }
+
+    // Vorschauen durch dieselbe Render-Pipeline statt CSS-Farbmultiplikation.
+    function createFigureMesh(type) {
+      if (type === 'light') return createLightFigure(FIG_BB_MAX_Y - figFootY);
+      const mesh = new THREE.Mesh(figGeo, figMat.clone());
+      mesh.userData.figureType = 'human';
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      attachFigurineEyes(mesh);
+      attachHeadMark(mesh);
+      return mesh;
+    }
+
+    function createColorPreviews(type) {
+      const previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      previewRenderer.setSize(96, 96);
+      previewRenderer.setPixelRatio(1);
+      previewRenderer.outputColorSpace = renderer.outputColorSpace;
+      previewRenderer.toneMapping = renderer.toneMapping;
+      previewRenderer.toneMappingExposure = renderer.toneMappingExposure;
+      const previewScene = new THREE.Scene();
+      for (const light of Object.values(cozyLightRig)) {
+        const copy = light.clone();
+        copy.castShadow = false;
+        previewScene.add(copy);
       }
-      const yStripe = V36_Y_MIN + (V36_Y_MAX - V36_Y_MIN) * 0.1;
-      const rSurf = profileRadiusAtY(V36_PROFILE, yStripe);
-      const tube = Math.max(0.018, rSurf * 0.14);
-      const major = Math.max(tube * 1.4, rSurf);
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(major, tube, 14, 64),
-        new THREE.MeshStandardMaterial({ color: hex, roughness: 0.45, metalness: 0.1 }),
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(0, yStripe, 0);
-      ring.castShadow = true;
-      ring.receiveShadow = true;
-      parentMesh.add(ring);
-      parentMesh.userData.colorRing = ring;
+      const previewCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 20);
+      previewCamera.position.set(0.28, 0.24, 0.64);
+      previewCamera.lookAt(0, 0.12, 0);
+      const mesh = createFigureMesh(type);
+      mesh.scale.setScalar(FIGURE_SCALE_M);
+      previewScene.add(mesh);
+      const previews = new Map();
+      for (const color of FIGURE_COLORS) {
+        setFigureColor(mesh, color.hex);
+        previewRenderer.render(previewScene, previewCamera);
+        previews.set(color.hex, previewRenderer.domElement.toDataURL());
+      }
+      mesh.children.forEach((child) => {
+        child.material.dispose();
+        if (child.geometry !== eyeGeo) child.geometry.dispose();
+      });
+      mesh.material.dispose();
+      if (mesh.geometry !== figGeo) mesh.geometry.dispose();
+      previewRenderer.dispose();
+      previewRenderer.forceContextLoss();
+      return previews;
+    }
+    const figureColorPreviews = new Map();
+
+    function updateColorSwatch(button, hex, type = 'human') {
+      if (!figureColorPreviews.has(type)) figureColorPreviews.set(type, createColorPreviews(type));
+      const color = FIGURE_COLORS.find((c) => c.hex === hex);
+      button.style.backgroundImage = `url(${figureColorPreviews.get(type).get(hex)})`;
+      const colorName = hex == null && type === 'light' ? 'Originallicht (Standard)' : color.name;
+      button.title = colorName;
+      button.setAttribute('aria-label', button.classList.contains('figure-color-trigger')
+        ? `Farbe wählen: ${colorName}` : colorName);
     }
 
     const figuresRoot = new THREE.Group();
@@ -796,8 +989,6 @@
     /** Auswahl: Sidebar + gedämpftes Highlight; Drehen nur über Ring-Griff am Brett */
     let selectedFigureId = null;
     const SELECTION_ACCENT = 0x5a8f88;
-    const HIGHLIGHT_EMISSIVE = new THREE.Color(SELECTION_ACCENT);
-    const HIGHLIGHT_EMISSIVE_INT = 0.22;
 
     const SELECTION_RING_RADIUS = 0.105; /* Basis bei Größe M */
     /** Leicht über der Brettfläche, damit Raycasts den Griff treffen (nicht zuerst die Platte) */
@@ -873,29 +1064,10 @@
       parts.handlePivot.rotation.y = ry;
     }
 
-    function syncFigureMeshHighlight(mesh, on) {
-      if (!mesh?.material || mesh.material.type !== 'MeshStandardMaterial') return;
-      if (on) {
-        if (!mesh.userData._savedEmissiveForSelect) {
-          mesh.userData._savedEmissiveForSelect = {
-            emissive: mesh.material.emissive.clone(),
-            emissiveIntensity: mesh.material.emissiveIntensity,
-          };
-        }
-        mesh.material.emissive.copy(HIGHLIGHT_EMISSIVE);
-        mesh.material.emissiveIntensity = HIGHLIGHT_EMISSIVE_INT;
-      } else if (mesh.userData._savedEmissiveForSelect) {
-        const s = mesh.userData._savedEmissiveForSelect;
-        mesh.material.emissive.copy(s.emissive);
-        mesh.material.emissiveIntensity = s.emissiveIntensity;
-      }
-    }
-
     function updateFigureMeshHighlights() {
+      // Auswahl wird durch Bodenring und Menürahmen angezeigt, ohne die Holzfarbe zu verändern.
       for (const p of placements) {
-        const mesh = p.group.userData.mesh;
-        const sel = p.id === selectedFigureId;
-        syncFigureMeshHighlight(mesh, sel);
+        p.group.userData.mesh.material.emissive?.setHex(0x000000);
       }
     }
 
@@ -910,10 +1082,21 @@
       });
     }
 
-    function clampToBoard(x, z) {
+    const figureBoardBounds = new THREE.Box3();
+
+    function clampToBoard(x, z, root) {
+      const mesh = root.userData.mesh;
+      mesh.updateWorldMatrix(true, false);
+      // Weltkoordinaten der gedrehten und skalierten Figur-Bounding-Box.
+      // Auswahlring und andere Bedienhilfen gehören nicht zur Grundfläche.
+      figureBoardBounds.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld);
+      const minX = -BOARD_HALF - (figureBoardBounds.min.x - root.position.x);
+      const maxX = BOARD_HALF - (figureBoardBounds.max.x - root.position.x);
+      const minZ = -BOARD_HALF - (figureBoardBounds.min.z - root.position.z);
+      const maxZ = BOARD_HALF - (figureBoardBounds.max.z - root.position.z);
       return {
-        x: Math.max(-BOARD_HALF, Math.min(BOARD_HALF, x)),
-        z: Math.max(-BOARD_HALF, Math.min(BOARD_HALF, z)),
+        x: THREE.MathUtils.clamp(x, minX, maxX),
+        z: THREE.MathUtils.clamp(z, minZ, maxZ),
       };
     }
 
@@ -969,24 +1152,28 @@
         trigger.title = 'Farbe wählen';
         trigger.setAttribute('aria-label', 'Farbe wählen');
         trigger.setAttribute('aria-expanded', 'false');
-        trigger.style.background = '#' + p.stripeColor.toString(16).padStart(6, '0');
+        updateColorSwatch(trigger, p.woodColor, p.type);
 
         const dropdown = document.createElement('div');
         dropdown.className = 'figure-color-dropdown';
         dropdown.setAttribute('role', 'listbox');
 
-        for (const c of STRIPE_COLORS) {
+        for (const c of FIGURE_COLORS) {
           const opt = document.createElement('button');
           opt.type = 'button';
           opt.className = 'figure-color-opt';
           opt.title = c.name;
           opt.setAttribute('aria-label', c.name);
-          opt.style.background = '#' + c.hex.toString(16).padStart(6, '0');
+          updateColorSwatch(opt, c.hex, p.type);
+          opt.textContent = c.hex == null && p.type === 'light' ? 'Originallicht (Standard)' : c.name;
+          opt.setAttribute('role', 'option');
+          opt.setAttribute('aria-selected', String(p.woodColor === c.hex));
           opt.addEventListener('click', (e) => {
             e.stopPropagation();
-            p.stripeColor = c.hex;
-            setFigureStripeColor(p.group.userData.mesh, c.hex);
-            trigger.style.background = '#' + c.hex.toString(16).padStart(6, '0');
+            p.woodColor = c.hex;
+            setFigureColor(p.group.userData.mesh, c.hex);
+            updateColorSwatch(trigger, c.hex, p.type);
+            dropdown.querySelectorAll('[role=option]').forEach((item) => item.setAttribute('aria-selected', String(item === opt)));
             dropdown.classList.remove('is-open');
             trigger.setAttribute('aria-expanded', 'false');
           });
@@ -1016,39 +1203,49 @@
         const sizeTrigger = document.createElement('button');
         sizeTrigger.type = 'button';
         sizeTrigger.className = 'figure-size-trigger';
-        const currentSize = p.size || 'M';
-        sizeTrigger.textContent = currentSize;
+        const currentSize = p.size ?? 1;
+        sizeTrigger.textContent = formatFigureSize(currentSize);
         sizeTrigger.title = 'Größe wählen';
         sizeTrigger.setAttribute('aria-label', 'Größe wählen');
         sizeTrigger.setAttribute('aria-expanded', 'false');
 
         const sizeDropdown = document.createElement('div');
         sizeDropdown.className = 'figure-size-dropdown';
-        sizeDropdown.setAttribute('role', 'listbox');
+        const sizeLabel = document.createElement('label');
+        sizeLabel.className = 'figure-size-label';
+        sizeLabel.htmlFor = `figure-size-${p.id}`;
+        sizeLabel.textContent = 'Größe';
+        const sizeValue = document.createElement('output');
+        sizeValue.htmlFor = sizeLabel.htmlFor;
+        sizeValue.textContent = formatFigureSize(currentSize);
+        sizeLabel.appendChild(sizeValue);
 
-        for (const sz of FIGURE_SIZES) {
-          const opt = document.createElement('button');
-          opt.type = 'button';
-          opt.className = 'figure-size-opt';
-          opt.textContent = sz;
-          opt.title = `Größe ${sz}`;
-          opt.setAttribute('aria-label', `Größe ${sz}`);
-          if (currentSize === sz) opt.classList.add('is-current');
-          opt.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (p.size !== sz) {
-              p.size = sz;
-              applyFigureSize(p);
-            }
-            sizeTrigger.textContent = sz;
-            sizeDropdown.querySelectorAll('.figure-size-opt').forEach((b) => {
-              b.classList.toggle('is-current', b.textContent === sz);
-            });
-            sizeDropdown.classList.remove('is-open');
-            sizeTrigger.setAttribute('aria-expanded', 'false');
-          });
-          sizeDropdown.appendChild(opt);
-        }
+        const sizeSlider = document.createElement('input');
+        sizeSlider.type = 'range';
+        sizeSlider.id = sizeLabel.htmlFor;
+        sizeSlider.className = 'figure-size-slider';
+        sizeSlider.min = String(FIGURE_SIZE_MIN);
+        sizeSlider.max = String(FIGURE_SIZE_MAX);
+        sizeSlider.step = 'any';
+        sizeSlider.value = String(currentSize);
+        sizeSlider.setAttribute('aria-valuetext', formatFigureSize(currentSize));
+        sizeSlider.addEventListener('input', () => {
+          p.size = Number(sizeSlider.value);
+          applyFigureSize(p);
+          const label = formatFigureSize(p.size);
+          sizeTrigger.textContent = label;
+          sizeValue.textContent = label;
+          sizeSlider.setAttribute('aria-valuetext', label);
+        });
+        sizeSlider.addEventListener('click', (e) => e.stopPropagation());
+        const sizeLimits = document.createElement('div');
+        sizeLimits.className = 'figure-size-limits';
+        const minLabel = document.createElement('span');
+        minLabel.textContent = '0,5×';
+        const maxLabel = document.createElement('span');
+        maxLabel.textContent = '2×';
+        sizeLimits.append(minLabel, maxLabel);
+        sizeDropdown.append(sizeLabel, sizeSlider, sizeLimits);
 
         sizeTrigger.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1127,34 +1324,26 @@
       if (idx < 0) return;
       const p = placements[idx];
       const mesh = p.group.userData.mesh;
-      if (mesh.userData.colorRing) {
-        mesh.userData.colorRing.geometry.dispose();
-        mesh.userData.colorRing.material.dispose();
-        mesh.userData.colorRing = null;
-      }
       mesh.children.forEach((ch) => {
         if (ch.material) ch.material.dispose();
         if (ch.geometry && ch.geometry !== eyeGeo && ch.geometry !== figGeo) ch.geometry.dispose();
       });
       if (mesh.material) mesh.material.dispose();
+      if (mesh.geometry !== figGeo) mesh.geometry.dispose();
       figuresRoot.remove(p.group);
       placements.splice(idx, 1);
       refreshFigureList();
     }
 
-    function addFigure() {
+    function addFigure(type = 'human') {
       const group = new THREE.Group();
-      const mesh = new THREE.Mesh(figGeo, figMat.clone());
-      const defaultSize = 'M';
+      const mesh = createFigureMesh(type);
+      const defaultSize = 1;
       const meshScale = figureScaleForSize(defaultSize);
       mesh.scale.setScalar(meshScale);
-      mesh.position.y = -figFootY * meshScale;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      attachFigurineEyes(mesh);
-      attachFacingArrow(mesh);
-      const defaultStripe = 0xffffff;
-      setFigureStripeColor(mesh, defaultStripe);
+      mesh.position.y = -mesh.geometry.boundingBox.min.y * meshScale;
+      const defaultColor = null;
+      setFigureColor(mesh, defaultColor);
       group.add(mesh);
 
       group.position.set(0, BOARD_TOP_Y, 0);
@@ -1163,13 +1352,50 @@
       group.userData.mesh = mesh;
 
       figuresRoot.add(group);
-      placements.push({ group, id, stripeColor: defaultStripe, size: defaultSize, name: `Figur ${id}` });
+      placements.push({ group, id, type, woodColor: defaultColor, size: defaultSize, name: `${type === 'light' ? 'Leuchtfigur' : 'Mensch'} ${id}` });
       selectedFigureId = id;
       refreshFigureList();
       return group;
     }
 
-    document.getElementById('add-figure').addEventListener('click', () => addFigure());
+    const addFigureWrap = document.getElementById('add-figure-wrap');
+    const addFigureButton = document.getElementById('add-figure');
+    const addFigureOptions = document.getElementById('add-figure-options');
+    function setAddFigureOpen(open) {
+      addFigureOptions.hidden = !open;
+      addFigureButton.setAttribute('aria-expanded', String(open));
+      if (open) closeAllFigurePickers();
+    }
+    addFigureButton.addEventListener('click', () => {
+      setAddFigureOpen(addFigureOptions.hidden);
+    });
+    addFigureButton.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setAddFigureOpen(true);
+        addFigureOptions.querySelector('button').focus();
+      }
+    });
+    addFigureOptions.querySelectorAll('button').forEach((button) => {
+      button.addEventListener('click', () => {
+        addFigure(button.dataset.figureType);
+        setAddFigureOpen(false);
+        addFigureButton.focus();
+      });
+    });
+    addFigureWrap.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        setAddFigureOpen(false);
+        addFigureButton.focus();
+      }
+    });
+    addFigureWrap.addEventListener('focusout', (event) => {
+      if (!addFigureWrap.contains(event.relatedTarget)) setAddFigureOpen(false);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!addFigureWrap.contains(event.target)) setAddFigureOpen(false);
+    });
+
 
     // --- Picking & Drag ---
     const raycaster = new THREE.Raycaster();
@@ -1334,7 +1560,7 @@
         if (raycaster.ray.intersectPlane(boardPlane, pt)) {
           const x = pt.x + (dragState.planeOffsetX ?? 0);
           const z = pt.z + (dragState.planeOffsetZ ?? 0);
-          const c = clampToBoard(x, z);
+          const c = clampToBoard(x, z, dragState.root);
           dragState.root.position.x = c.x;
           dragState.root.position.z = c.z;
           dragState.root.position.y = BOARD_TOP_Y;
