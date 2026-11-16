@@ -2,31 +2,17 @@ import { useEffect, useState } from 'react';
 import type { FigureData, SceneController } from '../state/types';
 import { FigureColorPicker } from './FigureColorPicker';
 import { FigureSizePicker } from './FigureSizePicker';
-export type OpenPicker = {
-  id: number;
-  kind: 'color' | 'size';
-} | null;
 export function FigureRow({
   figure,
   selected,
   controller,
-  picker,
-  setPicker,
 }: {
   figure: FigureData;
   selected: boolean;
   controller: SceneController;
-  picker: OpenPicker;
-  setPicker: (picker: OpenPicker) => void;
 }) {
   const [name, setName] = useState(figure.name);
   useEffect(() => setName(figure.name), [figure.name]);
-  const toggle = (kind: 'color' | 'size') =>
-    setPicker(
-      picker?.id === figure.id && picker.kind === kind
-        ? null
-        : { id: figure.id, kind },
-    );
   return (
     <li
       className={`figure-row${selected ? ' is-selected' : ''}`}
@@ -42,25 +28,16 @@ export function FigureRow({
         controller.selectFigure(figure.id);
       }}
     >
-      <FigureColorPicker
-        figure={figure}
-        controller={controller}
-        open={picker?.id === figure.id && picker.kind === 'color'}
-        toggle={() => toggle('color')}
-        close={() => setPicker(null)}
-      />
-      <FigureSizePicker
-        figure={figure}
-        controller={controller}
-        open={picker?.id === figure.id && picker.kind === 'size'}
-        toggle={() => toggle('size')}
-      />
+      <label className="property-field property-name"><span className="property-label">Name</span>
       <input
         type="text"
         className="figure-name-input"
         value={name}
         aria-label="Name der Figur"
-        onChange={(event) => setName(event.target.value)}
+        onChange={(event) => {
+          setName(event.target.value);
+          controller.setName(figure.id, event.target.value);
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             const normalized = name.trim() || `Figur ${figure.id}`;
@@ -74,13 +51,25 @@ export function FigureRow({
           controller.setName(figure.id, normalized);
         }}
       />
+      </label>
+      <div className="property-field"><span className="property-label">Farbe</span>
+      <FigureColorPicker
+        figure={figure}
+        controller={controller}
+      />
+      </div>
+      <div className="property-field">
+      <FigureSizePicker
+        figure={figure}
+        controller={controller}
+      />
+      </div>
       <button
         type="button"
         className="btn-figure-view"
         title="Figurensicht"
         aria-label="Figurensicht"
         onClick={() => {
-          setPicker(null);
           controller.enterFigureView(figure.id);
         }}
       >
@@ -96,6 +85,7 @@ export function FigureRow({
           <ellipse cx="12" cy="12" rx="8" ry="4.5" />
           <circle cx="12" cy="12" r="2" />
         </svg>
+        Sicht einnehmen
       </button>
       <button
         type="button"
@@ -103,7 +93,6 @@ export function FigureRow({
         title="Löschen"
         aria-label="Figur löschen"
         onClick={() => {
-          setPicker(null);
           controller.removeFigure(figure.id);
         }}
       >
@@ -121,6 +110,7 @@ export function FigureRow({
           <path d="M19 6l-1 14H6L5 6" />
           <path d="M10 11v6M14 11v6" />
         </svg>
+        Figur löschen
       </button>
     </li>
   );

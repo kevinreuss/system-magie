@@ -1,15 +1,11 @@
 import type { SceneController, SceneState } from '../state/types';
-import { FigureRow, type OpenPicker } from './FigureRow';
+import { FigureRow } from './FigureRow';
 export function FigureList({
   state,
   controller,
-  picker,
-  setPicker,
 }: {
   state: SceneState;
   controller: SceneController | null;
-  picker: OpenPicker;
-  setPicker: (picker: OpenPicker) => void;
 }) {
   return (
     <ul id="fig-list">
@@ -21,8 +17,6 @@ export function FigureList({
               figure={figure}
               selected={figure.id === state.selectedFigureId}
               controller={controller}
-              picker={picker}
-              setPicker={setPicker}
             />
           ))
         ) : (

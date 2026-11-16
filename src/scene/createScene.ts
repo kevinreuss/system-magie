@@ -56,6 +56,29 @@ export function createScene(
   scene.add(figuresRoot);
   const placements: FigureData[] = [];
   const groups = new Map<number, THREE.Group>();
+  const labels = new Map<number, HTMLDivElement>();
+  const labelLayer = document.createElement('div');
+  labelLayer.className = 'figure-label-layer';
+  wrap.appendChild(labelLayer);
+  const projectedLabel = new THREE.Vector3();
+  const figureBounds = new THREE.Box3();
+  function updateAnnotations() {
+    for (const [id, root] of groups) {
+      const mesh = root.userData.mesh as FigureMesh;
+      mesh.updateWorldMatrix(true, false);
+      // Dieselbe transformierte Geometrie-Bounding-Box wie bei der Brettbegrenzung.
+      figureBounds.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld);
+      const label = labels.get(id)!;
+      projectedLabel.set(root.position.x, figureBounds.max.y + 0.025, root.position.z).project(camera);
+      const visible = figureView.activeId !== id && projectedLabel.z > -1 && projectedLabel.z < 1;
+      label.hidden = !visible;
+      if (visible) {
+        label.style.transform = `translate(-50%, -100%) translate(${(projectedLabel.x + 1) * renderer.domElement.clientWidth / 2}px, ${(1 - projectedLabel.y) * renderer.domElement.clientHeight / 2}px)`;
+      }
+      label.classList.toggle('is-selected', selectedFigureId === id);
+
+    }
+  }
   let figureId = 0;
   const figureView = createFigureView(camera, controls, library.eye, () => {
     publish();
@@ -77,16 +100,8 @@ export function createScene(
   function getPlacementById(id: number | null) {
     return placements.find((p) => p.id === id) ?? null;
   }
-  function updateFigureMeshHighlights() {
-    // Auswahl wird durch den Menürahmen angezeigt, ohne die Holzfarbe zu verändern.
-    for (const p of placements) {
-      const material = (groups.get(p.id)!.userData.mesh as FigureMesh).material;
-      if ('emissive' in material) material.emissive.setHex(0x000000);
-    }
-  }
   function setSelectedFigureId(id: number | null) {
     selectedFigureId = id;
-    updateFigureMeshHighlights();
     publish();
   }
   function addFigure(type: FigureType = 'human') {
@@ -105,6 +120,11 @@ export function createScene(
     group.userData.mesh = mesh;
     figuresRoot.add(group);
     groups.set(id, group);
+    const label = document.createElement('div');
+    label.className = 'figure-label';
+    label.textContent = `${figureTypes[type].name} ${id}`;
+    labelLayer.appendChild(label);
+    labels.set(id, label);
     placements.push({
       id,
       type,
@@ -125,6 +145,8 @@ export function createScene(
     library.disposeMesh(group.userData.mesh);
     figuresRoot.remove(group);
     groups.delete(id);
+    labels.get(id)?.remove();
+    labels.delete(id);
     placements.splice(
       placements.findIndex((p) => p.id === id),
       1,
@@ -149,11 +171,14 @@ export function createScene(
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
   addFigure();
+  setSelectedFigureId(null);
   let frame = 0;
   function animate() {
     frame = requestAnimationFrame(animate);
     if (figureView.activeId !== null) figureView.update();
     else controls.update();
+    camera.updateMatrixWorld();
+    updateAnnotations();
     renderer.render(scene, camera);
   }
   animate();
@@ -182,7 +207,8 @@ export function createScene(
     setName(id, name) {
       const p = getPlacementById(id);
       if (!p) return;
-      p.name = name.trim() || `Figur ${id}`;
+      p.name = name;
+      labels.get(id)!.textContent = name.trim() || `Figur ${id}`;
       publish();
     },
     enterFigureView(id) {
@@ -201,6 +227,8 @@ export function createScene(
         library.disposeMesh(group.userData.mesh);
       figuresRoot.clear();
       groups.clear();
+      labels.clear();
+      labelLayer.remove();
       library.dispose();
       disposeScene(scene);
       renderer.dispose();
