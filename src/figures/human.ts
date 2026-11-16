@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FigureMesh } from './types';
+import { FIGURE_WOOD_COLOR } from './colors';
 export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
   // --- Menschenfigur V36: Lathe wie in System_Magie_Menschenfigur_Kontur_V36_anschauen.html ---
   const V36_CONTROL = [
@@ -188,11 +189,11 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
         const fine = Math.sin(u * 91 + warp * 8);
         const pores = Math.sin(u * 173 + Math.sin(v * 53) * 0.6);
         const shade = Math.round(
-          218 +
-            grain * 17 +
-            fine * 7 +
-            pores * 3 -
-            27 * Math.pow(Math.max(0, grain), 12),
+          240 +
+            grain * 9 +
+            fine * 4 +
+            pores * 2 -
+            14 * Math.pow(Math.max(0, grain), 12),
         );
         const i = (y * canvas.width + x) * 4;
         pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade;
@@ -208,8 +209,12 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
   }
   const figureWoodTexture = createFigureWoodTexture();
   const figMat = new THREE.MeshStandardMaterial({
-    color: 0xd6aa73,
+    color: FIGURE_WOOD_COLOR,
     map: figureWoodTexture,
+    // Sanfte Grundhelligkeit hält die Beize auch auf der Schattenseite lesbar.
+    emissive: FIGURE_WOOD_COLOR,
+    emissiveMap: figureWoodTexture,
+    emissiveIntensity: 0.3,
     bumpMap: figureWoodTexture,
     bumpScale: 0.008,
     roughness: 0.72,

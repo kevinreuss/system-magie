@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createHumanLibrary } from './human';
 import { createLightFigureLibrary, tintLightFigure } from './light';
-import { FIGURE_COLORS } from './colors';
+import { FIGURE_WOOD_COLOR } from './colors';
 import type { FigureMesh } from './types';
 type Libraries = {
   human: ReturnType<typeof createHumanLibrary>;
@@ -13,12 +13,12 @@ export const figureTypes = {
     defaultColorName: 'Naturholz (Standard)',
     create: (libraries: Libraries) => libraries.human.create(),
     tint(mesh: FigureMesh, hex: number | null) {
-      mesh.material.color.setHex(hex ?? 0xd6aa73);
-      const color = FIGURE_COLORS.find((c) => c.hex === hex);
-      const contrast = color?.group === 'Dunkel' ? 0xffffff : 0x000000;
+      mesh.material.color.setHex(hex ?? FIGURE_WOOD_COLOR);
+      if (mesh.material instanceof THREE.MeshStandardMaterial)
+        mesh.material.emissive.copy(mesh.material.color);
       for (const child of mesh.children as FigureMesh[]) {
         if (child.userData.isContrastMark)
-          child.material.color.setHex(contrast);
+          child.material.color.setHex(0x000000);
       }
     },
   },

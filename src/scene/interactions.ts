@@ -59,6 +59,8 @@ export function setupInteractions({
     planeOffsetX?: number;
     planeOffsetZ?: number;
     lastClientX: number;
+    lastClientY: number;
+    viewMoveScale: number;
   } | null = null;
   let figureViewLookDrag: {
     pointerId: number;
@@ -75,7 +77,8 @@ export function setupInteractions({
   } | null = null;
   const FIGURE_CLICK_MAX_PX = 8;
   function getFigureRoots() {
-    return figuresRoot.children;
+    // Die Figur, deren Augen die Kamera nutzt, darf keine Treffer abfangen.
+    return figuresRoot.children.filter((root) => root.userData.figureId !== figureView.activeId);
   }
   listen(renderer.domElement, 'pointerdown', onPointerDown);
   listen(renderer.domElement, 'pointermove', onPointerMove);
@@ -100,6 +103,10 @@ export function setupInteractions({
       root,
       mode,
       lastClientX: e.clientX,
+      lastClientY: e.clientY,
+      viewMoveScale: 2 * camera.position.distanceTo(root.position)
+        * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+        / renderer.domElement.getBoundingClientRect().height,
       pointerId: e.pointerId,
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -114,22 +121,22 @@ export function setupInteractions({
     }
   }
   function onPointerDown(e: PointerEvent) {
-    if (figureView.activeId !== null) {
-      if (e.target !== renderer.domElement) return;
-      e.preventDefault();
-      figureViewLookDrag = {
-        pointerId: e.pointerId,
-        lastX: e.clientX,
-        lastY: e.clientY,
-      };
-      renderer.domElement.setPointerCapture(e.pointerId);
-      return;
-    }
+    if (dragState || pendingFigurePick || figureViewLookDrag) return;
     const r = updatePointer(e);
     raycaster.setFromCamera(r, camera);
     const roots = getFigureRoots();
     const hits = raycaster.intersectObjects(roots, true);
     if (!hits.length) {
+      if (figureView.activeId !== null) {
+        e.preventDefault();
+        figureViewLookDrag = {
+          pointerId: e.pointerId,
+          lastX: e.clientX,
+          lastY: e.clientY,
+        };
+        renderer.domElement.setPointerCapture(e.pointerId);
+        return;
+      }
       if (e.button === 0) setSelectedFigureId(null);
       return;
     }
@@ -199,6 +206,25 @@ export function setupInteractions({
       return;
     }
     if (dragState.mode === 'move') {
+      if (figureView.activeId !== null) {
+        // In Augenhöhe schneiden Strahlen oberhalb des Horizonts die Brettfläche
+        // nicht. Deshalb Mausbewegungen hier entlang der Kameraachsen abbilden.
+        const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+        right.y = 0;
+        right.normalize();
+        const forward = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), right);
+        const dx = (e.clientX - dragState.lastClientX) * dragState.viewMoveScale;
+        const dy = (e.clientY - dragState.lastClientY) * dragState.viewMoveScale;
+        const c = clampToBoard(
+          dragState.root.position.x + right.x * dx - forward.x * dy,
+          dragState.root.position.z + right.z * dx - forward.z * dy,
+          dragState.root,
+        );
+        dragState.root.position.set(c.x, BOARD_TOP_Y, c.z);
+        dragState.lastClientX = e.clientX;
+        dragState.lastClientY = e.clientY;
+        return;
+      }
       const pt = new THREE.Vector3();
       if (raycaster.ray.intersectPlane(boardPlane, pt)) {
         const x = pt.x + (dragState.planeOffsetX ?? 0);
