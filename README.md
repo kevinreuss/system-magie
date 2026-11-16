@@ -28,6 +28,8 @@ Im GitHub-Repository unter **Settings → Pages → Build and deployment → Sou
 
 Die Anwendung ist dann unter `https://kevinreuss.github.io/system-magie/` erreichbar, sobald Pages aktiviert und der erste Workflow erfolgreich ist. Relative Asset-Pfade funktionieren auch unter einer eigenen Domain. `dist/` und `node_modules/` werden nicht eingecheckt; `package-lock.json` wird eingecheckt.
 
+Ein Merge in `main` startet die Veröffentlichung automatisch. Bei einem manuellen Start unter **Run workflow** ebenfalls `main` auswählen: Andere Branches werden nur gebaut, nicht veröffentlicht. Den Status und die veröffentlichte URL zeigt der Workflow-Lauf unter **Actions**.
+
 ## Aufbau
 
 - `src/components/`: React-Oberfläche, einschließlich Seitenleiste und Figurenreglern.
