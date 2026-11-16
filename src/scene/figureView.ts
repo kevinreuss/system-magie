@@ -35,7 +35,7 @@ export function createFigureView(
     camera.up.set(0, 1, 0);
     controls.enabled = true;
     controls.enableZoom = true;
-    controls.enablePan = true;
+    controls.enablePan = false;
     onChange();
   }
   function enterFigureView(p: THREE.Group) {

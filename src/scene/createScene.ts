@@ -40,9 +40,14 @@ export function createScene(
   controls.target.fromArray(room.camera.target);
   controls.enableDamping = true;
   controls.dampingFactor = 0.06;
-  controls.minDistance = 0.35;
-  controls.maxDistance = Infinity;
-  // Start etwas im Raum (näher am target), weniger dominante Außenwand
+  controls.enablePan = false;
+  controls.minDistance = 0.8;
+  controls.maxDistance = 1.85;
+  // Polarwinkel werden von oben gemessen: 15–50° über der Horizontalen.
+  // Zusammen mit dem festen Abstand bleibt die Kamera unter der Decke
+  // und mit Abstand innerhalb der Wände, auch beim Drehen um den Tisch.
+  controls.minPolarAngle = THREE.MathUtils.degToRad(40);
+  controls.maxPolarAngle = THREE.MathUtils.degToRad(75);
   camera.position.fromArray(room.camera.position);
   controls.update();
   const cozyLightRig = room.setupLighting(scene, renderer);

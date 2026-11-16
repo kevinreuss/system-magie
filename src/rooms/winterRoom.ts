@@ -10,7 +10,7 @@ import {
 export const winterRoom = {
   id: 'winter',
   name: 'Winterraum',
-  camera: { position: [0.88, 0.67, 1.91], target: [0, 0.2, 0] },
+  camera: { position: [0.88, 0.67, 1.91], target: [0, BOARD_TOP_Y + 0.1, 0] },
   board: { top: BOARD_TOP_Y, half: BOARD_HALF },
   setupLighting(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     const cozyLightRig = (() => {
