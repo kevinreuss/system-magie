@@ -3,7 +3,6 @@ import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { createFigureView } from './figureView';
 import { listenWithSignal } from './lifecycle';
 export function setupInteractions({
-  scene,
   camera,
   renderer,
   controls,
@@ -11,13 +10,10 @@ export function setupInteractions({
   boardTop,
   boardHalf,
   figureView,
-  getSelectedRoot,
   setSelectedFigureId,
-  syncSelectionRingVisual,
   onTransform,
   signal,
 }: {
-  scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
@@ -25,9 +21,7 @@ export function setupInteractions({
   boardTop: number;
   boardHalf: number;
   figureView: ReturnType<typeof createFigureView>;
-  getSelectedRoot: () => THREE.Group | null;
   setSelectedFigureId: (id: number | null) => void;
-  syncSelectionRingVisual: () => void;
   onTransform: () => void;
   signal: AbortSignal;
 }) {
@@ -58,23 +52,24 @@ export function setupInteractions({
   const pointer = new THREE.Vector2();
   let dragState: {
     root: THREE.Object3D;
-    mode: 'move' | 'rotateRing';
+    mode: 'move' | 'rotate';
     pointerId: number;
     startClientX?: number;
     startClientY?: number;
     planeOffsetX?: number;
     planeOffsetZ?: number;
-    lastAngle: number;
+    lastClientX: number;
   } | null = null;
   let figureViewLookDrag: {
     pointerId: number;
     lastX: number;
     lastY: number;
   } | null = null;
-  /** Kurzer Klick auf Figur = Auswahl; Ziehen = Verschieben; Drehen am Ring-Griff auf der Platte */
+  /** Die beim Anfassen gewählte Zone bleibt für die gesamte Geste aktiv. */
   let pendingFigurePick: {
     root: THREE.Object3D;
     pointerId: number;
+    mode: 'move' | 'rotate';
     startX: number;
     startY: number;
   } | null = null;
@@ -86,23 +81,13 @@ export function setupInteractions({
   listen(renderer.domElement, 'pointermove', onPointerMove);
   listen(renderer.domElement, 'pointerup', onPointerUp);
   listen(renderer.domElement, 'pointercancel', onPointerUp);
-  function boardPlaneAngleForRoot(
-    root: THREE.Object3D,
-    ndcFromEvent: THREE.Vector2,
-  ) {
-    raycaster.setFromCamera(ndcFromEvent, camera);
-    const pt = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(boardPlane, pt)) return null;
-    const lx = pt.x - root.position.x;
-    const lz = pt.z - root.position.z;
-    return Math.atan2(lx, lz);
-  }
   function beginFigureDrag(
     e: Pick<
       PointerEvent,
       'preventDefault' | 'clientX' | 'clientY' | 'pointerId'
     >,
     root: THREE.Object3D,
+    mode: 'move' | 'rotate',
   ) {
     if (e.preventDefault) e.preventDefault();
     const fid = root.userData.figureId;
@@ -113,8 +98,8 @@ export function setupInteractions({
     renderer.domElement.setPointerCapture(e.pointerId);
     dragState = {
       root,
-      mode: 'move',
-      lastAngle: 0,
+      mode,
+      lastClientX: e.clientX,
       pointerId: e.pointerId,
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -142,22 +127,6 @@ export function setupInteractions({
     }
     const r = updatePointer(e);
     raycaster.setFromCamera(r, camera);
-    const hitObj = raycaster.intersectObjects(scene.children, true)[0]?.object;
-    if (hitObj?.userData?.isSelectionRingHandle) {
-      const p = getSelectedRoot();
-      if (!p || figureView.activeId !== null) return;
-      e.preventDefault();
-      controls.enabled = false;
-      renderer.domElement.setPointerCapture(e.pointerId);
-      const ang = boardPlaneAngleForRoot(p, r);
-      dragState = {
-        mode: 'rotateRing',
-        root: p,
-        pointerId: e.pointerId,
-        lastAngle: ang != null ? ang : p.rotation.y,
-      };
-      return;
-    }
     const roots = getFigureRoots();
     const hits = raycaster.intersectObjects(roots, true);
     if (!hits.length) {
@@ -166,12 +135,18 @@ export function setupInteractions({
     }
     let root = hits[0].object;
     while (root.parent && root.parent !== figuresRoot) root = root.parent;
+    const mesh = root.userData.mesh as THREE.Mesh;
+    const localHit = mesh.worldToLocal(hits[0].point.clone());
+    mesh.geometry.computeBoundingBox();
+    const bounds = mesh.geometry.boundingBox!;
+    const rotationZoneTop = bounds.min.y + (bounds.max.y - bounds.min.y) / 3;
     e.preventDefault();
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     pendingFigurePick = {
       root,
       pointerId: e.pointerId,
+      mode: localHit.y < rotationZoneTop ? 'rotate' : 'move',
       startX: e.clientX,
       startY: e.clientY,
     };
@@ -201,6 +176,7 @@ export function setupInteractions({
             pointerId: pp.pointerId,
           },
           pp.root,
+          pp.mode,
         );
       }
     }
@@ -215,15 +191,11 @@ export function setupInteractions({
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const r = updatePointer(e);
     raycaster.setFromCamera(r, camera);
-    if (dragState.mode === 'rotateRing') {
-      const newAng = boardPlaneAngleForRoot(dragState.root, r);
-      if (newAng == null) return;
-      let d = newAng - dragState.lastAngle;
-      if (d > Math.PI) d -= 2 * Math.PI;
-      if (d < -Math.PI) d += 2 * Math.PI;
-      dragState.root.rotation.y += d;
-      dragState.lastAngle = newAng;
-      syncSelectionRingVisual();
+    if (dragState.mode === 'rotate') {
+      // Horizontal ziehen: eine volle Drehung auf 360 CSS-Pixeln.
+      const dx = e.clientX - dragState.lastClientX;
+      dragState.root.rotation.y += dx * (Math.PI / 180);
+      dragState.lastClientX = e.clientX;
       return;
     }
     if (dragState.mode === 'move') {
@@ -236,7 +208,6 @@ export function setupInteractions({
         dragState.root.position.z = c.z;
         dragState.root.position.y = BOARD_TOP_Y;
       }
-      syncSelectionRingVisual();
     }
   }
   function onPointerUp(e: PointerEvent) {
@@ -270,7 +241,6 @@ export function setupInteractions({
     dragState = null;
     onTransform();
     controls.enabled = figureView.activeId === null;
-    syncSelectionRingVisual();
     try {
       renderer.domElement.releasePointerCapture(e.pointerId);
     } catch (_) {}

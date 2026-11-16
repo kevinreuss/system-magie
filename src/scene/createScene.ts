@@ -58,8 +58,6 @@ export function createScene(
   const groups = new Map<number, THREE.Group>();
   let figureId = 0;
   const figureView = createFigureView(camera, controls, library.eye, () => {
-    ensureSelectionRing();
-    syncSelectionRingVisual();
     publish();
   });
   function publish() {
@@ -74,88 +72,13 @@ export function createScene(
       figureViewId: figureView.activeId,
     });
   }
-  /** Auswahl: Sidebar + gedämpftes Highlight; Drehen nur über Ring-Griff am Brett */
+  /** Auswahl: Sidebar; Drehen durch Ziehen am unteren Figurendrittel. */
   let selectedFigureId: number | null = null;
-  const SELECTION_ACCENT = 0x5a8f88;
-  const SELECTION_RING_RADIUS = 0.105; /* Basis bei Größe M */
-  /** Leicht über der Brettfläche, damit Raycasts den Griff treffen (nicht zuerst die Platte) */
-  const SELECTION_RING_Y = 0.028;
-  let selectionRingBuilt: {
-    group: THREE.Group;
-    handlePivot: THREE.Group;
-    handle: THREE.Mesh;
-    ring: THREE.Mesh;
-  } | null = null;
-  function ensureSelectionRing() {
-    if (selectionRingBuilt) return selectionRingBuilt;
-    const group = new THREE.Group();
-    group.name = 'selectionRing';
-    const ringThick = 0.0024;
-    const ringGeo = new THREE.RingGeometry(
-      SELECTION_RING_RADIUS - ringThick,
-      SELECTION_RING_RADIUS + ringThick,
-      72,
-    );
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: SELECTION_ACCENT,
-      transparent: true,
-      opacity: 0.38,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = SELECTION_RING_Y;
-    ring.renderOrder = 1;
-    ring.raycast = () => {};
-    group.add(ring);
-    const handleMat = new THREE.MeshBasicMaterial({
-      color: SELECTION_ACCENT,
-      transparent: true,
-      opacity: 0.92,
-      depthTest: true,
-    });
-    /** Pivot um Y: Kegel fest bei +lokal Z (= R nach vorne), rotiert mit Figuren-Blickrichtung */
-    const handlePivot = new THREE.Group();
-    handlePivot.position.y = SELECTION_RING_Y + 0.004;
-    const handle = new THREE.Mesh(
-      new THREE.ConeGeometry(0.022, 0.052, 10),
-      handleMat,
-    );
-    handle.rotation.x = Math.PI / 2;
-    handle.position.z = SELECTION_RING_RADIUS;
-    handle.renderOrder = 2;
-    handle.userData.isSelectionRingHandle = true;
-    handlePivot.add(handle);
-    group.add(handlePivot);
-    scene.add(group);
-    selectionRingBuilt = { group, handlePivot, handle, ring };
-    return selectionRingBuilt;
-  }
   function getPlacementById(id: number | null) {
     return placements.find((p) => p.id === id) ?? null;
   }
-  function syncSelectionRingVisual() {
-    const parts = selectionRingBuilt;
-    if (!parts) return;
-    const p =
-      selectedFigureId != null ? getPlacementById(selectedFigureId) : null;
-    if (!p || figureView.activeId !== null) {
-      parts.group.visible = false;
-      return;
-    }
-    parts.group.visible = true;
-    const root = groups.get(p.id)!;
-    const ry = root.rotation.y;
-    const sizeMult = p.size;
-    const ringR = SELECTION_RING_RADIUS * sizeMult;
-    parts.group.position.set(root.position.x, BOARD_TOP_Y, root.position.z);
-    parts.ring.scale.set(sizeMult, sizeMult, sizeMult);
-    parts.handle.position.z = ringR;
-    parts.handlePivot.rotation.y = ry;
-  }
   function updateFigureMeshHighlights() {
-    // Auswahl wird durch Bodenring und Menürahmen angezeigt, ohne die Holzfarbe zu verändern.
+    // Auswahl wird durch den Menürahmen angezeigt, ohne die Holzfarbe zu verändern.
     for (const p of placements) {
       const material = (groups.get(p.id)!.userData.mesh as FigureMesh).material;
       if ('emissive' in material) material.emissive.setHex(0x000000);
@@ -163,9 +86,7 @@ export function createScene(
   }
   function setSelectedFigureId(id: number | null) {
     selectedFigureId = id;
-    ensureSelectionRing();
     updateFigureMeshHighlights();
-    syncSelectionRingVisual();
     publish();
   }
   function addFigure(type: FigureType = 'human') {
@@ -211,7 +132,6 @@ export function createScene(
     setSelectedFigureId(selectedFigureId === id ? null : selectedFigureId);
   }
   setupInteractions({
-    scene,
     camera,
     renderer,
     controls,
@@ -219,10 +139,7 @@ export function createScene(
     boardTop: room.board.top,
     boardHalf: room.board.half,
     figureView,
-    getSelectedRoot: () =>
-      selectedFigureId === null ? null : (groups.get(selectedFigureId) ?? null),
     setSelectedFigureId,
-    syncSelectionRingVisual,
     onTransform: publish,
     signal,
   });
@@ -260,7 +177,6 @@ export function createScene(
       const scale = figureScaleForSize(size);
       mesh.scale.setScalar(scale);
       mesh.position.y = -mesh.geometry.boundingBox!.min.y * scale;
-      syncSelectionRingVisual();
       publish();
     },
     setName(id, name) {
