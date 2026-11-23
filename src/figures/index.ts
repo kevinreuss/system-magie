@@ -4,7 +4,6 @@ import { createHumanLibrary } from './human';
 import { createLightFigureLibrary, tintLightFigure } from './light';
 import { FIGURE_WOOD_COLOR } from './colors';
 import type { FigureMesh } from './types';
-import type { LightVariant } from './lightVariants';
 type Libraries = {
   animals: ReturnType<typeof createAnimalLibrary>;
   human: ReturnType<typeof createHumanLibrary>;
@@ -66,8 +65,6 @@ export function createFigureLibrary(renderer: THREE.WebGLRenderer) {
   return {
     eye: libraries.human.eye,
     load: (type: FigureType) => isAnimalType(type) ? libraries.animals.load(type) : Promise.resolve(),
-    createLightVariant: (variant: LightVariant) =>
-      libraries.light.createLightFigure(libraries.human.height, variant),
     create: (type: FigureType) => figureTypes[type].create(libraries),
     tint: (mesh: FigureMesh, type: FigureType, hex: number | null) =>
       figureTypes[type].tint(mesh, hex),
