@@ -25,29 +25,31 @@ const SCREEN_LIGHT = {
 } as const;
 
 // Körperprofil als Anteil der Gesamthöhe: [Höhe, Radius].
+// Form wie im Logo (hohe Schultern, schlanker Fuß, runder Kopf auf schmalem Hals),
+// aber kräftiger, damit sie neben der Menschenfigur nicht zierlich wirkt.
 const BODY: [number, number][] = [
-  [0.0, 0.018],
-  [0.02, 0.04],
-  [0.06, 0.054],
-  [0.12, 0.064],
-  [0.2, 0.071],
-  [0.28, 0.073],
-  [0.35, 0.073],
-  [0.41, 0.079],
-  [0.47, 0.094],
-  [0.53, 0.113],
-  [0.59, 0.127],
-  [0.645, 0.131],
-  [0.695, 0.122],
-  [0.74, 0.099],
-  [0.775, 0.072],
-  [0.8, 0.051],
-  [0.825, 0.039],
-  [0.85, 0.034],
-  [0.875, 0.028],
-  [0.9, 0.0],
+  [0.0, 0.058],
+  [0.02, 0.077],
+  [0.06, 0.093],
+  [0.12, 0.105],
+  [0.2, 0.113],
+  [0.28, 0.117],
+  [0.34, 0.121],
+  [0.4, 0.126],
+  [0.46, 0.144],
+  [0.52, 0.159],
+  [0.57, 0.165],
+  [0.62, 0.16],
+  [0.665, 0.14],
+  [0.7, 0.112],
+  [0.73, 0.083],
+  [0.755, 0.067],
+  [0.775, 0.061],
+  [0.8, 0.054],
+  [0.82, 0.04],
+  [0.85, 0.0],
 ];
-const HEAD_RADIUS = 0.08;
+const HEAD_RADIUS = 0.118;
 const HEAD_CENTER = 1 - HEAD_RADIUS;
 
 function bodyRadius(h: number) {
@@ -78,15 +80,15 @@ export function lightFigureRadius(h: number) {
 
 // Verdrehte Lichtbänder: [Startwinkel, Windungen, Breite (rad), Phase, Einschnürungen, Radiusfaktor, Ende, Anfang].
 const RIBBONS: [number, number, number, number, number, number, number, number?][] = [
-  [0.0, 1.05, 0.95, 0.0, 1.2, 0.985, 0.975],
-  [1.3, -0.9, 0.85, 1.3, 1.5, 0.985, 0.86],
-  [2.6, 0.95, 0.9, 2.2, 1.0, 0.985, 0.95],
-  [3.9, -1.1, 0.8, 0.7, 1.4, 0.97, 0.85],
-  [5.1, 0.8, 0.85, 2.9, 1.1, 0.985, 0.88],
-  [4.4, -0.65, 1.1, 0.4, 0.9, 0.62, 0.82],
+  [0.0, 1.05, 0.95, 0.0, 1.2, 0.985, 0.965],
+  [1.3, -0.9, 0.85, 1.3, 1.5, 0.985, 0.8],
+  [2.6, 0.95, 0.9, 2.2, 1.0, 0.985, 0.93],
+  [3.9, -1.1, 0.8, 0.7, 1.4, 0.97, 0.79],
+  [5.1, 0.8, 0.85, 2.9, 1.1, 0.985, 0.82],
+  [4.4, -0.65, 1.1, 0.4, 0.9, 0.62, 0.76],
   // Feine Wirbel in der Kopfkugel.
-  [0.8, 2.6, 1.0, 0.5, 3.0, 0.9, 0.995, 0.85],
-  [3.6, -2.2, 0.9, 1.7, 2.4, 0.82, 0.99, 0.855],
+  [0.8, 2.4, 1.0, 0.5, 3.0, 0.9, 0.99, 0.785],
+  [3.6, -2.0, 0.9, 1.7, 2.4, 0.82, 0.985, 0.79],
 ];
 
 const SHARED_VERTEX = `
@@ -117,10 +119,10 @@ function shellMaterial(uniforms: Record<string, THREE.IUniform>) {
         float rim = pow(edge, 5.0);
         float sheen = pow(edge, 1.6);
         // Kopf und Fuß leuchten etwas stärker, wie in der Vorlage.
-        float head = smoothstep(0.86, 0.9, vHeight);
+        float head = smoothstep(0.77, 0.82, vHeight);
         float foot = exp(-vHeight * 16.0);
         float alpha = rim * 1.15 + sheen * (0.08 + head * 0.3) + 0.02
-          + head * (0.14 + 0.42 * sheen + 0.12 * smoothstep(0.92, 1.0, vHeight)) + foot * 0.25;
+          + head * (0.14 + 0.42 * sheen + 0.12 * smoothstep(0.9, 1.0, vHeight)) + foot * 0.25;
         vec3 tint = mix(color, vec3(1.0, 0.97, 0.9), clamp(rim * 1.4 + foot + head * 0.6, 0.0, 1.0));
         gl_FragColor = vec4(tint * alpha, clamp((alpha - rim * 1.15) * 0.7, 0.0, 0.7));
       }`,
@@ -231,8 +233,8 @@ function createInnerGlow(height: number, color: THREE.Color) {
       void main() {
         vec3 direction = normalize(localPosition - eye);
         vec3 safeDirection = mix(vec3(-1.0), vec3(1.0), step(vec3(0.0), direction)) * max(abs(direction), vec3(0.00001));
-        vec3 t0 = (vec3(-0.36, -0.06, -0.36) - eye) / safeDirection;
-        vec3 t1 = (vec3(0.36, 1.08, 0.36) - eye) / safeDirection;
+        vec3 t0 = (vec3(-0.5, -0.06, -0.5) - eye) / safeDirection;
+        vec3 t1 = (vec3(0.5, 1.08, 0.5) - eye) / safeDirection;
         vec3 nearT = min(t0, t1), farT = max(t0, t1);
         float entry = max(0.0, max(nearT.x, max(nearT.y, nearT.z)));
         float exitT = min(farT.x, min(farT.y, farT.z));
@@ -250,7 +252,7 @@ function createInnerGlow(height: number, color: THREE.Color) {
           float ends = smoothstep(-0.03, 0.02, p.y) * (1.0 - smoothstep(0.99, 1.05, p.y));
           float body = exp(-pow(radial / (r * 0.78), 2.0) * 1.6);
           float halo = exp(-pow(radial / (soft * 1.9 + 0.025), 2.0) * 1.6);
-          float head = smoothstep(0.86, 0.92, p.y);
+          float head = smoothstep(0.78, 0.85, p.y);
           float foot = 1.0 + 2.2 * exp(-p.y * 14.0);
           float mist = 0.82 + 0.18 * sin(p.y * 26.0 + p.x * 30.0 + time * 0.5) * sin(p.z * 28.0 - p.y * 17.0 + time * 0.35);
           float sampleDensity = (body * (0.8 + 1.4 * head) * mist + halo * 0.36) * foot * ends;
@@ -266,7 +268,7 @@ function createInnerGlow(height: number, color: THREE.Color) {
     ...SCREEN_LIGHT,
     side: THREE.BackSide,
   });
-  const volume = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1.14, 0.72), material);
+  const volume = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.14, 1.0), material);
   volume.geometry.translate(0, 0.51, 0);
   volume.scale.setScalar(height);
   volume.renderOrder = 1;
@@ -404,7 +406,7 @@ export function createLightFigureLibrary() {
     const ribbons = ribbonMaterial({ ...shared, strength: { value: 1 } });
     const headSwirls = ribbonMaterial({ ...shared, strength: { value: 0.35 } });
     for (const ribbon of RIBBONS) {
-      const inHead = (ribbon[7] ?? 0) > 0.8;
+      const inHead = (ribbon[7] ?? 0) > 0.7;
       add(new THREE.Mesh(ribbonGeometry(height, ribbon), inHead ? headSwirls : ribbons));
     }
     const ground = add(createGroundLight(height, shared), 0);
