@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FigureMesh } from './types';
+import { addLightVariantEffects, SELECTED_LIGHT_VARIANT, type LightVariant } from './lightVariants';
 export function createLightFigureLibrary() {
   const clamp = (v: number, a: number, b: number) =>
     Math.max(a, Math.min(b, v));
@@ -82,45 +83,7 @@ export function createLightFigureLibrary() {
           ((t - 0.875) / 0.125) * 0.4 +
           0.055 * Math.pow((t - 0.875) / 0.125, 5);
   }
-  function makeVeilTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    for (let i = 0; i <= 112; i++) {
-      const t = 0.012 + (0.976 * i) / 112;
-      const y = (1 - heightAt(t) / sourceHeight) * 512;
-      const r = ((radius(t) * 0.82) / 0.65) * 256;
-      const fade = Math.max(0, Math.min(1, t / 0.075, (1 - t) / 0.075));
-      for (const [width, height, opacity] of [
-        [0.94, 0.021, 0.12],
-        [1.9, 0.046, 0.028],
-      ]) {
-        ctx.save();
-        ctx.translate(128, y);
-        ctx.scale(r * width, 512 * height);
-        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-        gradient.addColorStop(0, `rgba(255,255,255,${opacity * fade})`);
-        gradient.addColorStop(
-          0.38,
-          `rgba(255,255,255,${opacity * fade * 0.78})`,
-        );
-        gradient.addColorStop(
-          0.72,
-          `rgba(255,255,255,${opacity * fade * 0.34})`,
-        );
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(-1, -1, 2, 2);
-        ctx.restore();
-      }
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }
-  let veilTexture: THREE.Texture | undefined;
-  function createLightFigure(targetHeight: number) {
+  function createLightFigure(targetHeight: number, variant: LightVariant = SELECTED_LIGHT_VARIANT) {
     const scale = targetHeight / sourceHeight;
     const points = [];
     for (let i = 0; i <= 240; i++) {
@@ -174,17 +137,20 @@ export function createLightFigureLibrary() {
         );
       }
       const curve = new THREE.CatmullRomCurve3(path);
-      for (const [width, opacity, warm] of [
-        [0.024, 0.055, 0xffcd97],
-        [0.012, 0.12, 0xffdcb2],
-        [0.0037, 0.78, 0xffe7cb],
-        [0.0014, 0.62, 0xfff6e5],
-      ]) {
+      const layers = [
+        [0.052, 0.012, variant.warmth],
+        [0.028, 0.03, variant.warmth],
+        [0.012, 0.09, variant.warmth],
+        [0.0037, 0.95, 0xfff4e4],
+        [0.0016, 1, 0xffffff],
+      ];
+      for (const [width, opacity, warm] of layers) {
         addPart(
           new THREE.TubeGeometry(curve, 240, width * scale, 5, false),
           new THREE.MeshBasicMaterial({
             transparent: true,
             opacity,
+            blending: width > 0.005 ? THREE.AdditiveBlending : THREE.NormalBlending,
             depthWrite: false,
             toneMapped: false,
           }),
@@ -192,27 +158,22 @@ export function createLightFigureLibrary() {
         );
       }
     }
-    veilTexture ??= makeVeilTexture();
-    for (const rotation of [0, Math.PI / 2]) {
-      const veil = addPart(
-        new THREE.PlaneGeometry(0.65 * scale, targetHeight),
-        new THREE.MeshBasicMaterial({
-          map: veilTexture,
-          transparent: true,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-          toneMapped: false,
-        }),
-        0xfff4e5,
-      );
-      veil.position.y = targetHeight / 2;
-      veil.rotation.y = rotation;
-    }
+    addLightVariantEffects(root, targetHeight, (fraction) => {
+      // Invert the non-linear head height so the glow follows the line silhouette.
+      let low = 0, high = 1;
+      for (let i = 0; i < 16; i++) {
+        const mid = (low + high) / 2;
+        if (heightAt(mid) < fraction * sourceHeight) low = mid;
+        else high = mid;
+      }
+      return radius((low + high) / 2) * 1.018 * scale;
+    }, variant);
     return root;
   }
-  return { createLightFigure, dispose: () => veilTexture?.dispose() };
+  return { createLightFigure, dispose() {} };
 }
 export function tintLightFigure(mesh: FigureMesh, hex: number | null) {
+  mesh.userData.tintLightEffects?.(hex);
   for (const part of mesh.children as FigureMesh[]) {
     if (!part.userData.lightBaseColor) continue;
     part.material.color.copy(part.userData.lightBaseColor);

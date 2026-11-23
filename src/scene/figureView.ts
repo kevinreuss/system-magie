@@ -53,9 +53,13 @@ export function createFigureView(
     if (!figureViewPlacement) return;
     const mesh = figureViewPlacement.userData.mesh as FigureMesh;
     mesh.updateWorldMatrix(true, true);
-    _fvEyeL.set(-EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
-    _fvEyeR.set(EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
-    _fvEyeMid.copy(_fvEyeL).add(_fvEyeR).multiplyScalar(0.5);
+    if (mesh.userData.eyeLocal) {
+      _fvEyeMid.copy(mesh.userData.eyeLocal).applyMatrix4(mesh.matrixWorld);
+    } else {
+      _fvEyeL.set(-EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
+      _fvEyeR.set(EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
+      _fvEyeMid.copy(_fvEyeL).add(_fvEyeR).multiplyScalar(0.5);
+    }
     mesh.getWorldQuaternion(_fvQuat);
     _fvFwdBase.set(0, 0, 1).applyQuaternion(_fvQuat).normalize();
     const bx = _fvFwdBase.x;

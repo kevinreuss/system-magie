@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { FlyoutBranch } from './FlyoutBranch';
 import { getSelectedRoomId, rooms, type RoomId } from '../rooms';
 
 export function SettingsMenu() {
   const [open, setOpen] = useState(false);
-  const [roomsOpen, setRoomsOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const currentRoom = getSelectedRoomId();
@@ -29,27 +29,23 @@ export function SettingsMenu() {
     <button type="button" id="settings-toggle" ref={toggle}
       aria-label="Einstellungen" title="Einstellungen"
       aria-expanded={open} aria-controls="settings-panel"
-      onClick={() => { setOpen(!open); setRoomsOpen(false); }}>
+      onClick={() => { setOpen(!open); }}>
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="m9 3 .6-1h4.8l.6 3 2 1.2 2.8-.9 2.4 4.2-2.2 2v2.3l2.2 2-2.4 4.2-2.8-.9-2 1.2-.6 2.7H9l-.6-2.7-2-1.2-2.8.9-2.4-4.2 2.2-2v-2.3l-2.2-2 2.4-4.2 2.8.9 2-1.2L9 3Z" transform="translate(1 1) scale(.9)" />
         <circle cx="12" cy="12" r="3.2" />
       </svg>
     </button>
-    <div id="settings-panel" hidden={!open}>
+    {open && <div id="settings-panel" className="cascade-panel" role="group" aria-label="Einstellungen">
       <div className="add-heading">Einstellungen</div>
-      <button type="button" className="room-menu-toggle" aria-expanded={roomsOpen}
-        aria-controls="room-options" onClick={() => setRoomsOpen(!roomsOpen)}>
-        <span>Raum ändern<small>{rooms[currentRoom].name}</small></span>
-        <span aria-hidden="true">{roomsOpen ? '−' : '+'}</span>
-      </button>
-      <div id="room-options" role="group" aria-label="Raum auswählen" hidden={!roomsOpen}>
+      <FlyoutBranch label="Raum" id="room-options" direction="right">
+        <div className="add-heading">Raum auswählen</div>
         {(Object.keys(rooms) as RoomId[]).map((id) => <button type="button" key={id}
           aria-pressed={id === currentRoom} disabled={id === currentRoom}
           onClick={() => changeRoom(id)}>
-          <span>{rooms[id].name}</span><span aria-hidden="true">{id === currentRoom ? '✓' : ''}</span>
+          <span>{rooms[id].name}</span><span className="menu-check" aria-hidden="true">{id === currentRoom ? '✓' : ''}</span>
         </button>)}
-        <p>Beim Raumwechsel startet die Aufstellung neu.</p>
-      </div>
-    </div>
+        <p className="menu-note">Beim Raumwechsel startet die Aufstellung neu.</p>
+      </FlyoutBranch>
+    </div>}
   </div>;
 }

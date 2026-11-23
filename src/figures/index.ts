@@ -1,9 +1,12 @@
 import * as THREE from 'three';
+import { animalModels, animalTypes, createAnimalLibrary, isAnimalType, tintAnimal, type AnimalType } from './animals';
 import { createHumanLibrary } from './human';
 import { createLightFigureLibrary, tintLightFigure } from './light';
 import { FIGURE_WOOD_COLOR } from './colors';
 import type { FigureMesh } from './types';
+import type { LightVariant } from './lightVariants';
 type Libraries = {
+  animals: ReturnType<typeof createAnimalLibrary>;
   human: ReturnType<typeof createHumanLibrary>;
   humanV49: ReturnType<typeof createHumanLibrary>;
   light: ReturnType<typeof createLightFigureLibrary>;
@@ -18,7 +21,19 @@ function tintHumanFigure(mesh: FigureMesh, hex: number | null) {
   }
 }
 
+const animalFigureTypes = Object.fromEntries(animalTypes.map((type) => [type, {
+  name: animalModels[type].name,
+  defaultColorName: 'Originalfarben',
+  create: (libraries: Libraries) => libraries.animals.create(type),
+  tint: tintAnimal,
+}])) as Record<AnimalType, {
+  name: string;
+  defaultColorName: string;
+  create: (libraries: Libraries) => FigureMesh;
+  tint: typeof tintAnimal;
+}>;
 export const figureTypes = {
+  ...animalFigureTypes,
   human: {
     name: 'Mensch',
     defaultColorName: 'Naturholz (Standard)',
@@ -41,19 +56,25 @@ export const figureTypes = {
 };
 export type FigureType = keyof typeof figureTypes;
 export function createFigureLibrary(renderer: THREE.WebGLRenderer) {
+  const human = createHumanLibrary(renderer);
   const libraries = {
-    human: createHumanLibrary(renderer),
+    animals: createAnimalLibrary(human.height),
+    human,
     humanV49: createHumanLibrary(renderer, 'humanV49'),
     light: createLightFigureLibrary(),
   };
   return {
     eye: libraries.human.eye,
+    load: (type: FigureType) => isAnimalType(type) ? libraries.animals.load(type) : Promise.resolve(),
+    createLightVariant: (variant: LightVariant) =>
+      libraries.light.createLightFigure(libraries.human.height, variant),
     create: (type: FigureType) => figureTypes[type].create(libraries),
     tint: (mesh: FigureMesh, type: FigureType, hex: number | null) =>
       figureTypes[type].tint(mesh, hex),
     disposeMesh(mesh: FigureMesh) {
+      mesh.userData.disposeLightEffects?.();
       mesh.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
+        if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Points)) return;
         if (
           !libraries.human.sharedGeometries.has(object.geometry) &&
           !libraries.humanV49.sharedGeometries.has(object.geometry)
@@ -69,6 +90,7 @@ export function createFigureLibrary(renderer: THREE.WebGLRenderer) {
       libraries.human.dispose();
       libraries.humanV49.dispose();
       libraries.light.dispose();
+      libraries.animals.dispose();
     },
   };
 }
