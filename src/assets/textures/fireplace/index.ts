@@ -1,0 +1,17 @@
+import baseFront from './baseFront.jpg';
+import baseSide from './baseSide.jpg';
+import baseLeft from './baseLeft.jpg';
+import baseTop from './baseTop.jpg';
+import pier from './pier.jpg';
+import archFront from './archFront.jpg';
+import archBack from './archBack.jpg';
+import archTop from './archTop.jpg';
+import archSide from './archSide.jpg';
+import fire from './fire.jpg';
+import wood from './wood.jpg';
+import woodEnd from './woodEnd.jpg';
+import hood from './hood.jpg';
+import hoodSide from './hoodSide.jpg';
+import cap from './cap.jpg';
+import capTop from './capTop.jpg';
+export const FIREPLACE_TEXTURES = { baseFront, baseSide, baseLeft, baseTop, pier, archFront, archBack, archTop, archSide, fire, wood, woodEnd, hood, hoodSide, cap, capTop };

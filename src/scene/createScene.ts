@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { defaultRoom } from '../rooms';
+import { rooms, getSelectedRoomId } from '../rooms';
 import { createTable } from './table';
 import { createFigureLibrary, figureTypes, type FigureType } from '../figures';
 import { createPreviewCache } from '../figures/previews';
@@ -16,7 +16,7 @@ export function createScene(
   store: SceneStore,
   onError: (error: unknown) => void,
 ): SceneController {
-  const room = defaultRoom;
+  const room = rooms[getSelectedRoomId()];
   const BOARD_TOP_Y = room.board.top;
   const abort = new AbortController();
   const { signal } = abort;
