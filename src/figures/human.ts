@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import type { FigureMesh } from './types';
 import { FIGURE_WOOD_COLOR } from './colors';
-export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
+import { HUMAN_V49_CONTROL } from './humanV49Profile';
+export function createHumanLibrary(
+  renderer: THREE.WebGLRenderer,
+  variant: 'human' | 'humanV49' = 'human',
+) {
   // --- Menschenfigur V36: Lathe wie in System_Magie_Menschenfigur_Kontur_V36_anschauen.html ---
   const V36_CONTROL = [
     [0.3, 0.0],
@@ -71,10 +75,11 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
     profile.push(control[control.length - 1]);
     return profile;
   }
-  const V36_PROFILE = buildCatmullRomProfile(V36_CONTROL);
-  const V36_Y_MAX = Math.max(...V36_PROFILE.map((p) => p[1]));
-  function buildHumanV36Geometry() {
-    const control = V36_CONTROL;
+  const figureControl = variant === 'humanV49' ? HUMAN_V49_CONTROL : V36_CONTROL;
+  const figureProfile = buildCatmullRomProfile(figureControl);
+  const figureYMax = Math.max(...figureProfile.map((p) => p[1]));
+  function buildHumanGeometry() {
+    const control = figureControl;
     function meshFromVerts(vertices: number[], indices: number[]) {
       const normals = new Array(vertices.length).fill(0);
       for (let i = 0; i < indices.length; i += 3) {
@@ -120,7 +125,7 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
           profile[j][1],
           profile[j][0] * Math.sin(a),
         );
-        uv.push(i / seg, profile[j][1] / V36_Y_MAX);
+        uv.push(i / seg, profile[j][1] / figureYMax);
       }
     }
     for (let j = 0; j < profile.length - 1; j++) {
@@ -167,7 +172,7 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
     geo.setIndex(idx);
     return geo;
   }
-  const figGeo = buildHumanV36Geometry();
+  const figGeo = buildHumanGeometry();
   figGeo.computeBoundingBox();
   const figFootY = figGeo.boundingBox!.min.y;
   const FIG_BB_MAX_Y = figGeo.boundingBox!.max.y;
@@ -220,27 +225,75 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
     roughness: 0.72,
     metalness: 0,
   });
-  // Augen: Im Original per Shader-Kreise in lokalem Raum. Three r169 mappt MeshStandard auf
-  // Physical-Shader – onBeforeCompile-Hooks trafen zuverlässig nicht die finale Farbe.
-  // Zwei kleine Kugeln an denselben Koordinaten wie die Original-Augenzentren (sichtbare Hemisphäre z>0.245).
-  const eyeBallRadius = 0.027;
-  const eyeGeo = new THREE.SphereGeometry(eyeBallRadius, 16, 12);
-  const eyeMatTemplate = new THREE.MeshBasicMaterial({ color: 0x0c0a09 });
-  const EYE_Y = 1.925;
+  // Wie der Kopfpfeil liegen die Augen direkt auf der vorhandenen Kopfkontur.
+  const EYE_Y = 2.045;
   const EYE_X = 0.092;
-  const EYE_R_PROFILE = 0.3;
-  const EYE_Z = Math.sqrt(
-    Math.max(0, EYE_R_PROFILE * EYE_R_PROFILE - EYE_X * EYE_X),
+  const eyeRadius = 0.027;
+  const profileIndex = figureProfile.findIndex((point) => point[1] >= EYE_Y);
+  const [radiusBelow, yBelow] = figureProfile[profileIndex - 1];
+  const [radiusAbove, yAbove] = figureProfile[profileIndex];
+  const eyeProfileRadius = THREE.MathUtils.lerp(
+    radiusBelow,
+    radiusAbove,
+    (EYE_Y - yBelow) / (yAbove - yBelow),
   );
+  const EYE_Z = Math.sqrt(eyeProfileRadius ** 2 - EYE_X ** 2);
+  const eyeCanvas = document.createElement('canvas');
+  eyeCanvas.width = eyeCanvas.height = 512;
+  const eyeContext = eyeCanvas.getContext('2d')!;
+  const eyeProjectionSize = 0.4;
+  eyeContext.fillStyle = '#ffffff';
+  for (const sign of [-1, 1]) {
+    eyeContext.beginPath();
+    eyeContext.arc(
+      (0.5 + (sign * EYE_X) / eyeProjectionSize) * eyeCanvas.width,
+      eyeCanvas.height / 2,
+      (eyeRadius / eyeProjectionSize) * eyeCanvas.width,
+      0,
+      Math.PI * 2,
+    );
+    eyeContext.fill();
+  }
+  const eyeTexture = new THREE.CanvasTexture(eyeCanvas);
+  eyeTexture.colorSpace = THREE.SRGBColorSpace;
+  eyeTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const eyeGeo = figGeo.clone();
+  const eyePositions = eyeGeo.getAttribute('position');
+  const eyeUv = eyeGeo.getAttribute('uv');
+  const eyeIndices: number[] = [];
+  for (let i = 0; i < eyePositions.count; i++) {
+    eyeUv.setXY(
+      i,
+      0.5 + eyePositions.getX(i) / eyeProjectionSize,
+      0.5 + (eyePositions.getY(i) - EYE_Y) / eyeProjectionSize,
+    );
+  }
+  for (let i = 0; i < eyeGeo.index!.count; i += 3) {
+    const triangle = [
+      eyeGeo.index!.getX(i),
+      eyeGeo.index!.getX(i + 1),
+      eyeGeo.index!.getX(i + 2),
+    ];
+    if (triangle.every((v) => eyePositions.getZ(v) > 0 && eyePositions.getY(v) > 1.8))
+      eyeIndices.push(...triangle);
+  }
+  eyeGeo.setIndex(eyeIndices);
+  const eyeMatTemplate = new THREE.MeshBasicMaterial({
+    map: eyeTexture,
+    color: 0x000000,
+    toneMapped: false,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
   function attachFigurineEyes(parentMesh: FigureMesh) {
-    for (const sign of [-1, 1]) {
-      const eye = new THREE.Mesh(eyeGeo, eyeMatTemplate.clone());
-      eye.position.set(sign * EYE_X, EYE_Y, EYE_Z);
-      eye.renderOrder = 2;
-      eye.userData.isContrastMark = true;
-      eye.material.toneMapped = false;
-      parentMesh.add(eye);
-    }
+    const eyes = new THREE.Mesh(eyeGeo, eyeMatTemplate.clone());
+    eyes.renderOrder = 2;
+    eyes.userData.isContrastMark = true;
+    eyes.raycast = () => {};
+    parentMesh.add(eyes);
   }
   // Aufgedruckte Kopfmarkierung auf der gewölbten Oberfläche, Spitze nach lokal +Z.
   const FACING_DIR = new THREE.Vector3(0, 0, 1);
@@ -310,7 +363,7 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
     sharedGeometries: new Set([figGeo, eyeGeo]),
     create(): FigureMesh {
       const mesh = new THREE.Mesh(figGeo, figMat.clone());
-      mesh.userData.figureType = 'human';
+      mesh.userData.figureType = variant;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       attachFigurineEyes(mesh);
@@ -322,6 +375,7 @@ export function createHumanLibrary(renderer: THREE.WebGLRenderer) {
       eyeGeo.dispose();
       figMat.dispose();
       eyeMatTemplate.dispose();
+      eyeTexture.dispose();
       figureWoodTexture.dispose();
       headMarkTexture.dispose();
     },
