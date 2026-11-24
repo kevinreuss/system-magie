@@ -2,10 +2,18 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { FigureMesh } from './types';
 
+const model = (name: string, heightMeters: number, url: URL) => ({ name, heightMeters, url: url.href });
 export const animalModels = {
-  dog: { name: 'Hund', heightMeters: 0.8, url: new URL('../../animals/Separate_assets_glb/dog_001.glb', import.meta.url).href },
-  cat: { name: 'Katze', heightMeters: 0.3, url: new URL('../../animals/Separate_assets_glb/kitty_001.glb', import.meta.url).href },
-  horse: { name: 'Pferd', heightMeters: 2.0, url: new URL('../../animals/Separate_assets_glb/horse_001.glb', import.meta.url).href },
+  dog: model('Hund', 0.8, new URL('../../animals/dog.glb', import.meta.url)),
+  cat: model('Katze', 0.35, new URL('../../animals/cat.glb', import.meta.url)),
+  rabbit: model('Kaninchen', 0.35, new URL('../../animals/rabbit.glb', import.meta.url)),
+  pig: model('Schwein', 0.9, new URL('../../animals/pig.glb', import.meta.url)),
+  sheep: model('Schaf', 1.0, new URL('../../animals/sheep.glb', import.meta.url)),
+  goat: model('Ziege', 1.0, new URL('../../animals/goat.glb', import.meta.url)),
+  hen: model('Huhn', 0.45, new URL('../../animals/hen.glb', import.meta.url)),
+  rooster: model('Hahn', 0.6, new URL('../../animals/rooster.glb', import.meta.url)),
+  duck: model('Ente', 0.45, new URL('../../animals/duck.glb', import.meta.url)),
+  goose: model('Gans', 0.8, new URL('../../animals/goose.glb', import.meta.url)),
 };
 export type AnimalType = keyof typeof animalModels;
 export const animalTypes = Object.keys(animalModels) as AnimalType[];
@@ -27,6 +35,23 @@ function disposeModel(root: THREE.Object3D, includeTextures: boolean) {
   textures.forEach((texture) => { texture.dispose(); });
 }
 
+// Mitte der obersten Punkte; mit minZ nur das vordere Ende (beim Schwein ist sonst der Rücken am höchsten).
+function topCenter(root: THREE.Object3D, bounds: THREE.Box3, minZ = -Infinity) {
+  const threshold = bounds.max.y - (bounds.max.y - bounds.min.y) * 0.2;
+  const sum = new THREE.Vector3(), vertex = new THREE.Vector3();
+  let count = 0;
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const positions = object.geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      vertex.fromBufferAttribute(positions, i);
+      if (vertex.y >= threshold && vertex.z >= minZ) { sum.add(vertex); count++; }
+    }
+  });
+  // Augen liegen etwas tiefer als Ohrspitzen und Scheitel.
+  return count ? sum.divideScalar(count).add(new THREE.Vector3(0, -(bounds.max.y - bounds.min.y) * 0.1, 0)) : undefined;
+}
+
 // Total height including head/ears, not shoulder height; reference adult = 1.75 m.
 export const HUMAN_REFERENCE_HEIGHT_METERS = 1.75;
 export function createAnimalLibrary(humanModelHeight: number) {
@@ -41,7 +66,7 @@ export function createAnimalLibrary(humanModelHeight: number) {
       if (disposed) { disposeModel(gltf.scene, true); return; }
       const template = new THREE.Group();
       gltf.scene.updateMatrixWorld(true);
-      const head = gltf.scene.getObjectByName('scull')?.getWorldPosition(new THREE.Vector3());
+      let head = gltf.scene.getObjectByName('scull')?.getWorldPosition(new THREE.Vector3());
       // Bake the supplied resting pose into static meshes. Each animal is a tabletop figurine.
       gltf.scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
@@ -68,11 +93,16 @@ export function createAnimalLibrary(humanModelHeight: number) {
       disposeModel(gltf.scene, false);
       const bounds = new THREE.Box3().setFromObject(template);
       const center = bounds.getCenter(new THREE.Vector3());
+      const hasHeadBone = !!head;
+      // Ohne Kopfknochen: Die obersten Punkte liegen eher vorne und bestimmen die Blickrichtung.
+      head ??= topCenter(template, bounds);
       // Orient the head toward local +Z, matching the other figures and figure view.
       const rotation = new THREE.Matrix4().makeRotationY(head && head.z < center.z ? Math.PI : 0);
       template.children.forEach((object) => (object as THREE.Mesh).geometry.applyMatrix4(rotation));
       head?.applyMatrix4(rotation);
       bounds.setFromObject(template);
+      // Augen ohne Kopfknochen: oberste Punkte im vorderen Drittel des Körpers.
+      if (!hasHeadBone) head = topCenter(template, bounds, bounds.max.z - (bounds.max.z - bounds.min.z) / 3) ?? head;
       const size = bounds.getSize(new THREE.Vector3());
       const targetHeight = humanModelHeight * animalModels[type].heightMeters / HUMAN_REFERENCE_HEIGHT_METERS;
       const factor = targetHeight / size.y;
