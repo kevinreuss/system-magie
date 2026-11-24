@@ -19,6 +19,16 @@ export type AnimalType = keyof typeof animalModels;
 export const animalTypes = Object.keys(animalModels) as AnimalType[];
 export function isAnimalType(type: string): type is AnimalType { return Object.hasOwn(animalModels, type); }
 
+// Eigenleuchten der Tiere mit ihrer eigenen Textur, wie bei den Menschenfiguren:
+// Das gedämpfte Raumlicht allein lässt sie sonst zu dunkel wirken. Wert per Test ermittelt.
+const ANIMAL_GLOW = 0.7;
+function addGlow(material: THREE.Material) {
+  if (!(material instanceof THREE.MeshStandardMaterial)) return;
+  material.emissive.copy(material.color);
+  material.emissiveMap = material.map;
+  material.emissiveIntensity = ANIMAL_GLOW;
+}
+
 function disposeModel(root: THREE.Object3D, includeTextures: boolean) {
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
@@ -144,6 +154,7 @@ export function createAnimalLibrary(humanModelHeight: number) {
         const mesh = original.clone();
         mesh.geometry = original.geometry.clone();
         mesh.material = Array.isArray(original.material) ? original.material.map((m) => m.clone()) : original.material.clone();
+        (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(addGlow);
         root.add(mesh);
       }
       return root;
@@ -161,6 +172,7 @@ export function tintAnimal(mesh: FigureMesh, hex: number | null) {
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
       if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshBasicMaterial)
         material.color.setHex(hex ?? material.userData.originalColor ?? 0xffffff);
+      if (material instanceof THREE.MeshStandardMaterial) material.emissive.copy(material.color);
     }
   });
 }
