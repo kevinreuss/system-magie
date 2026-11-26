@@ -11,6 +11,7 @@ npm ci
 npm run dev
 ```
 
+
 Die im Terminal angezeigte Adresse im Browser öffnen. Änderungen werden automatisch übernommen. Ein direktes Öffnen der `index.html` per Doppelklick wird nicht mehr unterstützt.
 
 ## Build und Prüfung
