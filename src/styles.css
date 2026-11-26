@@ -26,9 +26,6 @@ button:hover { background: #4a4136; }
 #add-figure-wrap { position: fixed; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 25; }
 #add-figure { width: 60px; height: 60px; border-radius: 50%; margin: 0; padding: 0; display: grid; place-items: center; background: var(--accent-gold); border: 1px solid var(--accent-gold); color: #000; box-shadow: 0 6px 24px #0006; font-size: 36px; font-weight: 300; }
 #add-figure:hover { background: #d2b88f; }
-#add-figure-options { position: absolute; bottom: 74px; right: 0; width: 240px; padding: 8px; border: 1px solid #6a5c4a; border-radius: 14px; background: #242018; box-shadow: 0 10px 28px #0007; }
-#add-figure-options button { margin: 0; text-align: left; background: transparent; border-color: transparent; }
-#add-figure-options button:hover, #add-figure-options button:focus-visible { background: #4a4136; }
 .add-heading { padding: 8px 14px; font-size: 12px; color: #b9ae9e; }
 
 #fig-list .figure-color-wrap { position: relative; flex-shrink: 0; }
@@ -149,3 +146,35 @@ button:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 3p
 #fig-list .figure-color-dropdown.is-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 #fig-list .figure-color-opt { min-height: 48px; height: auto; margin: 0; padding: 8px 8px 8px 36px; background-position: 4px center; background-size: 28px 36px; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 #fig-list .figure-size-dropdown.is-open { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+
+#settings-wrap { position: fixed; left: max(24px, env(safe-area-inset-left)); top: max(24px, env(safe-area-inset-top)); z-index: 30; }
+#settings-toggle { width: 60px; height: 60px; border-radius: 50%; margin: 0; padding: 0; display: grid; place-items: center; background: var(--accent-gold); border: 1px solid var(--accent-gold); color: #000; box-shadow: 0 6px 24px #0006; }
+#settings-toggle:hover { background: #d2b88f; }
+@media (max-width: 600px) {
+  #settings-wrap { left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top)); }
+}
+
+/* Both corner menus share the same warm, two-level flyout styling. */
+#settings-wrap, #add-figure-wrap { --menu-width: min(190px, calc((100vw - 48px) / 2)); }
+.cascade-panel { width: var(--menu-width); padding: 6px; border: 1px solid #8b76534d; border-radius: 14px; background: rgba(36, 32, 26, .98); box-shadow: 0 12px 32px #0005, inset 0 1px 0 #ffffff08; }
+#settings-panel { position: absolute; top: 74px; left: 0; }
+#add-figure-options { position: absolute; bottom: 74px; right: 0; }
+.cascade-panel button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0; padding: 11px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; font-size: 14px; line-height: 1.4; }
+.cascade-panel button:hover, .cascade-panel button:focus-visible, .cascade-panel .flyout-trigger[aria-expanded="true"] { background: #c4a57419; color: #f5dfba; }
+.cascade-panel button:focus-visible { outline-offset: -2px; }
+.cascade-panel button:disabled { cursor: default; }
+.cascade-panel button[aria-pressed="true"] { color: var(--accent-gold); background: #c4a57410; }
+.cascade-panel .add-heading { padding: 8px 12px 9px; font-size: 11px; letter-spacing: .04em; color: #b6aa97; }
+.flyout-branch { position: relative; }
+.flyout-chevron { flex-shrink: 0; color: var(--accent-gold); }
+.flyout-left .flyout-chevron { transform: rotate(180deg); order: -1; }
+.flyout-left .flyout-trigger { justify-content: flex-start; }
+.flyout-bridge { position: absolute; top: -7px; z-index: 1; }
+.flyout-right > .flyout-bridge { left: 100%; padding-left: 10px; }
+.flyout-left > .flyout-bridge { right: 100%; padding-right: 10px; top: auto; bottom: -7px; }
+.flyout-panel { max-height: calc(100dvh - 120px); overflow-y: auto; }
+.menu-note { margin: 6px 10px 8px; padding-top: 10px; border-top: 1px solid #c4a57426; color: #b6aa97; font-size: 11px; line-height: 1.5; }
+.menu-check { color: var(--accent-gold); }
+@media (max-width: 420px) {
+  .cascade-panel button { padding: 10px 8px; font-size: 13px; }
+}

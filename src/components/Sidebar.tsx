@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { figureTypes, type FigureType } from '../figures';
+import type { FigureType } from '../figures';
+import { animalModels, animalTypes } from '../figures/animals';
+import { FlyoutBranch } from './FlyoutBranch';
 import type { SceneController, SceneState } from '../state/types';
 import { FigureRow } from './FigureRow';
 
@@ -21,6 +23,11 @@ export function Sidebar({ state, controller, children }: {
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, []);
+  function addFigure(type: FigureType) {
+    controller?.addFigure(type);
+    setAddOpen(false);
+    addButton.current?.focus();
+  }
   return <>
     {children}
     {selected && controller && <aside id="sidebar" aria-label="Figur bearbeiten">
@@ -37,15 +44,20 @@ export function Sidebar({ state, controller, children }: {
         if (event.key === 'Escape') { setAddOpen(false); addButton.current?.focus(); }
       }}
       onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setAddOpen(false); }}>
-      <div id="add-figure-options" role="group" aria-label="Figurentyp wählen" hidden={!addOpen}>
+      {addOpen && <div id="add-figure-options" className="cascade-panel" role="group" aria-label="Figurentyp wählen">
         <div className="add-heading">Figur hinzufügen</div>
-        {(Object.keys(figureTypes) as FigureType[]).map((type, index) => <button
-          type="button" key={type} ref={index === 0 ? firstOption : undefined}
-          disabled={!controller} data-figure-type={type}
-          onClick={() => { controller?.addFigure(type); setAddOpen(false); addButton.current?.focus(); }}>
-          {figureTypes[type].name}
-        </button>)}
-      </div>
+        <FlyoutBranch label="Mensch" id="human-options" direction="left" disabled={!controller} buttonRef={firstOption}>
+          <div className="add-heading">Mensch</div>
+          <button type="button" data-figure-type="human" onClick={() => addFigure('human')}>Normal</button>
+          <button type="button" data-figure-type="humanV49" onClick={() => addFigure('humanV49')}>Geschwungen</button>
+        </FlyoutBranch>
+        <FlyoutBranch label="Tiere" id="animal-options" direction="left" disabled={!controller}>
+          <div className="add-heading">Tiere</div>
+          {animalTypes.map((type) => <button type="button" key={type} data-figure-type={type}
+            onClick={() => addFigure(type)}>{animalModels[type].name}</button>)}
+        </FlyoutBranch>
+        <button type="button" disabled={!controller} data-figure-type="light" onClick={() => addFigure('light')}>Leuchtfigur</button>
+      </div>}
       <button type="button" id="add-figure" ref={addButton} aria-label="Figur hinzufügen"
         title="Figur hinzufügen" aria-expanded={addOpen} aria-controls="add-figure-options"
         onClick={() => { setAddOpen(!addOpen); }}

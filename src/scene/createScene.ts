@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { defaultRoom } from '../rooms';
+import { rooms, getSelectedRoomId } from '../rooms';
 import { createTable } from './table';
+import { uniqueFigureName } from '../state/figureNames';
 import { createFigureLibrary, figureTypes, type FigureType } from '../figures';
 import { createPreviewCache } from '../figures/previews';
 import { figureScaleForSize } from '../figures/size';
@@ -16,7 +17,7 @@ export function createScene(
   store: SceneStore,
   onError: (error: unknown) => void,
 ): SceneController {
-  const room = defaultRoom;
+  const room = rooms[getSelectedRoomId()];
   const BOARD_TOP_Y = room.board.top;
   const abort = new AbortController();
   const { signal } = abort;
@@ -109,7 +110,14 @@ export function createScene(
     selectedFigureId = id;
     publish();
   }
-  function addFigure(type: FigureType = 'human') {
+  async function addFigure(type: FigureType = 'human') {
+    try {
+      await library.load(type);
+    } catch (error) {
+      if (!signal.aborted) onError(error);
+      return;
+    }
+    if (signal.aborted) return;
     const group = new THREE.Group();
     const mesh = library.create(type);
     const defaultSize = 1;
@@ -121,13 +129,14 @@ export function createScene(
     group.add(mesh);
     group.position.set(0, BOARD_TOP_Y, 0);
     const id = ++figureId;
+    const name = uniqueFigureName(figureTypes[type].name, placements.map((figure) => figure.name));
     group.userData.figureId = id;
     group.userData.mesh = mesh;
     figuresRoot.add(group);
     groups.set(id, group);
     const label = document.createElement('div');
     label.className = 'figure-label';
-    label.textContent = `${figureTypes[type].name} ${id}`;
+    label.textContent = name;
     labelLayer.appendChild(label);
     labels.set(id, label);
     placements.push({
@@ -135,7 +144,7 @@ export function createScene(
       type,
       woodColor: defaultColor,
       size: defaultSize,
-      name: `${figureTypes[type].name} ${id}`,
+      name,
       position: group.position.toArray(),
       rotation: 0,
     });
@@ -175,7 +184,11 @@ export function createScene(
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
-  addFigure();
+  void addFigure('light').then(() => { if (!signal.aborted) setSelectedFigureId(null); });
+  // Show the selected light design on startup.
+  controls.target.set(0, BOARD_TOP_Y + 0.14, 0);
+  camera.position.set(0, BOARD_TOP_Y + 0.46, 0.85);
+  controls.update();
   setSelectedFigureId(null);
   let frame = 0;
   function animate() {

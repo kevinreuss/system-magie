@@ -15,6 +15,13 @@ export function createFigureView(
   const startCameraPos = camera.position.clone();
   const startCameraQuat = camera.quaternion.clone();
   const startControlsTarget = controls.target.clone();
+  const sceneFov = camera.fov;
+  /** Sichtfeld der Figurensicht (vertikal, Grad); die Raumansicht behält ihr eigenes. */
+  const FIGURE_VIEW_FOV = 50;
+  function applyFov(fov: number) {
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
   /** Figurensicht: Mitte zwischen den Augen, Blick wie Pfeil (+lokal Z); nur umschauen, kein Zoom/Pan */
   let figureViewPlacement: THREE.Group | null = null;
   let figureViewYaw = 0;
@@ -33,6 +40,7 @@ export function createFigureView(
     camera.quaternion.copy(startCameraQuat);
     controls.target.copy(startControlsTarget);
     camera.up.set(0, 1, 0);
+    applyFov(sceneFov);
     controls.enabled = true;
     controls.enableZoom = true;
     controls.enablePan = false;
@@ -46,6 +54,7 @@ export function createFigureView(
     controls.enabled = false;
     controls.enableZoom = false;
     controls.enablePan = false;
+    applyFov(FIGURE_VIEW_FOV);
     updateFigureViewCamera();
     onChange();
   }
@@ -53,9 +62,13 @@ export function createFigureView(
     if (!figureViewPlacement) return;
     const mesh = figureViewPlacement.userData.mesh as FigureMesh;
     mesh.updateWorldMatrix(true, true);
-    _fvEyeL.set(-EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
-    _fvEyeR.set(EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
-    _fvEyeMid.copy(_fvEyeL).add(_fvEyeR).multiplyScalar(0.5);
+    if (mesh.userData.eyeLocal) {
+      _fvEyeMid.copy(mesh.userData.eyeLocal).applyMatrix4(mesh.matrixWorld);
+    } else {
+      _fvEyeL.set(-EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
+      _fvEyeR.set(EYE_X, EYE_Y, EYE_Z).applyMatrix4(mesh.matrixWorld);
+      _fvEyeMid.copy(_fvEyeL).add(_fvEyeR).multiplyScalar(0.5);
+    }
     mesh.getWorldQuaternion(_fvQuat);
     _fvFwdBase.set(0, 0, 1).applyQuaternion(_fvQuat).normalize();
     const bx = _fvFwdBase.x;

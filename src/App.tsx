@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { SceneViewport } from './components/SceneViewport';
 import { Sidebar } from './components/Sidebar';
+import { SettingsMenu } from './components/SettingsMenu';
 import { createSceneStore } from './state/sceneState';
 import type { SceneController } from './state/types';
 export function App() {
@@ -33,6 +34,7 @@ export function App() {
         onReady={setController}
         onError={showError}
       />
+      <SettingsMenu />
       <Sidebar state={state} controller={controller}>
         <button
           type="button"
