@@ -184,8 +184,8 @@ export function createScene(
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
-  void addFigure('light').then(() => { if (!signal.aborted) setSelectedFigureId(null); });
-  // Show the selected light design on startup.
+  void addFigure('human').then(() => { if (!signal.aborted) setSelectedFigureId(null); });
+  // Start with the default human figure on the board.
   controls.target.set(0, BOARD_TOP_Y + 0.14, 0);
   camera.position.set(0, BOARD_TOP_Y + 0.46, 0.85);
   controls.update();
